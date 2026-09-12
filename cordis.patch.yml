@@ -1,0 +1,14 @@
+# Bundle layer of @jaxzhou/dsh-mathmatic-symbol.
+#
+# Applied after every earlier bundle layer when a profile lists this package in
+# `dsh.profile.bundles`. The single row mounts the plugin's Host half: three
+# model-facing tools (`math_formula`, `math_figure`, `math_convert`) registered
+# through `ctx.tools`, disposed again when this row unloads.
+#
+# The row `name` is the installed package name — scoped, so it cannot collide
+# with another author's plugin. The `id` is what a profile's own patch layer
+# overrides (to disable the tools without uninstalling), and it carries the
+# scope for the same reason.
+- insert:
+    - id: jaxzhou-mathmatic-symbol
+      name: '@jaxzhou/dsh-mathmatic-symbol'

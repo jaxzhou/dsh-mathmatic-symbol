@@ -1,0 +1,6 @@
+node_modules/
+*.tsbuildinfo
+# A local `npm pack` output is a test artifact, not a source of truth.
+*.tgz
+# Scratch renders produced by the local smoke script; not source.
+.tmp/
