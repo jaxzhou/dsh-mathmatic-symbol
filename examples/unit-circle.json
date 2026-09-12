@@ -1,0 +1,24 @@
+{
+  "width": 520,
+  "height": 440,
+  "padding": 20,
+  "background": "#ffffff",
+  "xRange": [-1.45, 1.45],
+  "yRange": [-1.45, 1.45],
+  "axes": true,
+  "grid": { "step": 0.5 },
+  "title": "\\sin^2\\theta + \\cos^2\\theta = 1",
+  "vars": { "c": "cos(pi/6)", "s": "sin(pi/6)" },
+  "elements": [
+    { "type": "circle", "center": [0, 0], "radius": 1, "color": "#64748b" },
+    { "type": "segment", "from": [0, 0], "to": ["c", "s"], "arrow": "end", "color": "#b91c1c", "width": 2, "label": "1", "label_offset": [10, -8] },
+    { "type": "segment", "from": ["c", 0], "to": ["c", "s"], "style": "dashed", "color": "#0f766e" },
+    { "type": "segment", "from": [0, "s"], "to": ["c", "s"], "style": "dashed", "color": "#0f766e" },
+    { "type": "segment", "from": [0, 0], "to": ["c", 0], "color": "#0f766e", "width": 2.2 },
+    { "type": "segment", "from": [0, 0], "to": [0, "s"], "color": "#7c3aed", "width": 2.2 },
+    { "type": "angle", "at": [0, 0], "from": [1, 0], "to": ["c", "s"], "label": "\\theta", "radius": 46 },
+    { "type": "point", "at": ["c", "s"], "label": "P", "label_offset": [14, -12] },
+    { "type": "text", "at": [0.55, -0.28], "text": "\\cos\\theta", "color": "#0f766e" },
+    { "type": "text", "at": [-0.24, 0.45], "text": "\\sin\\theta", "color": "#7c3aed" }
+  ]
+}

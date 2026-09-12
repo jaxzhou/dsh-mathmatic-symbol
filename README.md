@@ -7,12 +7,12 @@ English | [中文](README.zh.md)
 
 > The npm package name is **`@jaxzhou/dsh-mathmatic-symbol`**.
 
-Three tools for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness):
-**typeset LaTeX formulas into images**, **draw mathematical figures from a
-declarative spec**, and **convert a formula or SVG into an image ready to embed
-in a document**. Every artifact is a **font-free SVG** (all glyphs are outline
-paths) plus an optional **PNG**, returned with snippets you can paste straight
-into Markdown, HTML, or LaTeX.
+A [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) plugin that
+gives the agent three tools: **typeset LaTeX into an image**, **draw a
+mathematical figure from a declarative spec**, and **convert a formula or SVG
+into an image ready to drop into a document**. Every artifact is a
+**font-free SVG** — each glyph is an outline `<path>` — plus an optional **PNG**,
+returned together with Markdown / HTML / LaTeX snippets.
 
 ```sh
 dsh plugin --profile web add @jaxzhou/dsh-mathmatic-symbol
@@ -22,48 +22,82 @@ dsh --profile web
 ![Sine and cosine on the unit circle: gridded axes, a radius arrow, dashed
 projections, a theta arc, and a LaTeX title](media/demo.png)
 
-*Produced by `math_figure`: unit circle, $\sin\theta$/$\cos\theta$ projections,
-angle arc, and a LaTeX title — every glyph is a vector path, so no font is
-needed anywhere.*
+*`examples/unit-circle.json` — unit circle, $\sin\theta$/$\cos\theta$
+projections, angle arc and LaTeX title. Nothing in this image depends on an
+installed font.*
 
-## The three tools
+## Contents
 
-| Tool | What it does | Typical request |
-| --- | --- | --- |
-| **`math_formula`** | LaTeX math → SVG + PNG | "turn this formula into an image for my doc" |
-| **`math_figure`** | Declarative geometry/function figure → SVG + PNG | "draw a unit circle / triangle / rose curve" |
-| **`math_convert`** | Formula, inline SVG, or workspace SVG/PNG → embeddable images | "convert this SVG to PNG" |
+- [Why images instead of text](#why-images-instead-of-text)
+- [Quick start](#quick-start)
+- [The three tools](#the-three-tools) · [`math_formula`](#math_formula) · [`math_figure`](#math_figure) · [`math_convert`](#math_convert)
+- [Figure spec reference](#figure-spec-reference)
+- [Coordinate expressions](#coordinate-expressions)
+- [Output: paths, naming, layout](#output-paths-naming-layout)
+- [Embedding into documents](#embedding-into-documents)
+- [Inline preview](#inline-preview)
+- [Configuration](#configuration) · [Disable and uninstall](#disable-and-uninstall)
+- [Requirements and verification](#requirements-and-verification)
+- [Privacy and authority](#privacy-and-authority)
+- [Known limitations](#known-limitations)
+- [Development](#development)
 
-All three return the same structured result: paths (workspace-relative and
-absolute), byte sizes, intrinsic and pixel dimensions, and `embed.markdown_svg`,
-`embed.html_png`, `embed.latex_png`, and friends.
+## Why images instead of text
 
-## Formulas
+A formula in a chat message is text; in a report, slide, Word file, or PDF it
+usually has to be a picture. Producing that picture reliably is the whole point
+of this plugin:
+
+- **No font dependency.** MathJax runs with `fontCache: 'none'`, so every glyph
+  becomes an outline path. The SVG contains no `<defs>`, `<use>`, `id`, or
+  `font-family`: it renders identically in a browser, in Word, in an
+  `\includegraphics` pipeline, and on a build machine with no math fonts
+  installed.
+- **Deterministic rasters.** PNG output comes from `@resvg/resvg-js` with
+  system font loading disabled — the same bytes on every machine.
+- **Content-addressed files.** The same input always writes the same file name,
+  so re-running a call overwrites instead of littering the workspace.
+- **Document-shaped output.** Every call returns `embed.markdown_svg`,
+  `embed.html_png`, `embed.latex_png`, and optional base64 data URIs.
+
+The trade-off is deliberate: because text is outlined, labels are not selectable
+or searchable inside the image.
+
+## Quick start
+
+**A formula.** `math_formula` takes bare TeX; `$…$`, `$$…$$`, `\[…\]`, `\(…\)`,
+and `\begin{equation}…\end{equation}` are stripped for you.
 
 ```
-math_formula({
-  latex: "\\int_0^\\infty e^{-x^2}\\,dx = \\frac{\\sqrt{\\pi}}{2}",
-  display: true,
-  format: "both",
-  scale: 4,
-  name: "gaussian-integral"
-})
+math_formula({ latex: "\\int_0^\\infty e^{-x^2}\\,dx = \\frac{\\sqrt{\\pi}}{2}" })
 ```
 
-- `$…$`, `$$…$$`, `\[…\]`, `\(…\)`, and `\begin{equation}…\end{equation}` are
-  stripped automatically, so a model may pass bare TeX.
-- Every glyph is a `<path>`; the SVG contains no `<defs>`, `<use>`, `id`, or
-  `font-family`, so it renders identically in browsers, Word, and LaTeX
-  pipelines.
-- A syntax error is never silent: the result carries a `warnings` entry and the
-  image shows MathJax's own error marker.
+→ writes `math/formula-f091edca9660.svg` and `math/formula-f091edca9660.png`, and
+returns paths, sizes and snippets (the alt text is abbreviated here):
 
-## Figures
+```text
+<math kind="formula" display="true" width="148" height="55">
+svg: math/formula-f091edca9660.svg (7.4 KiB, 148x55 at 1x)
+png: math/formula-f091edca9660.png (8.5 KiB, 592x220)
+markdown: ![\int_0^\infty e^{-x^2}\,dx = \frac{\sqrt{\pi}}{2}](math/formula-f091edca9660.svg)
+html: <img src="math/formula-f091edca9660.svg" width="148" height="55" alt="…">
+latex: \includegraphics[width=3.92cm]{math/formula-f091edca9660.png}
+</math>
+```
 
-`math_figure` takes a JSON spec: a canvas, an optional coordinate frame, and an
-ordered list of elements. Coordinates are **mathematical** (y grows upward) and
-may be expressions over the spec's `vars`. A point can be named and then
-referenced by that name in later elements.
+Snippets place both formats at the 1× display size (148 px), so the 4× PNG is a
+high-density asset for the same layout box rather than a 4× larger picture.
+
+**A figure.** `math_figure` takes a JSON spec in mathematical coordinates, with
+named points and LaTeX labels:
+
+```
+math_figure({ figure: { …see examples/triangle.json… }, name: "triangle" })
+```
+
+The spec behind the example above lives in
+[`examples/triangle.json`](examples/triangle.json); a right triangle with a
+right-angle marker, an angle label, grid and axes:
 
 ```json
 {
@@ -83,84 +117,195 @@ referenced by that name in later elements.
 }
 ```
 
-### Element reference
+More specs you can render as-is: [`examples/unit-circle.json`](examples/unit-circle.json),
+[`examples/rose.json`](examples/rose.json) (a three-petal polar rose),
+[`examples/function-plot.json`](examples/function-plot.json) (a `stretch`-aspect
+function plot).
 
-| Element | Key fields |
+**Conversion.** `math_convert` handles what the other two do not: an existing
+SVG string, or an SVG/PNG file already in the workspace.
+
+```
+math_convert({ source: { path: "diagrams/flow.svg" }, format: "png", scale: 3 })
+```
+
+Foreign SVG is sanitized first — scripts, foreign markup, event handlers,
+`DOCTYPE`, external references, remote paint servers and fetching styles are
+removed, and every removal is reported in `warnings`.
+
+## Try it without a Harness
+
+The drawing layer is an ordinary library call, so a spec can be previewed from a
+source checkout:
+
+```sh
+npm install
+node scripts/render-example.mjs examples/rose.json          # writes .tmp/examples/rose.{svg,png}
+node scripts/render-example.mjs examples/triangle.json out --scale=2
+```
+
+## The three tools
+
+All three share the [common parameters](#common-parameters) and return the same
+structured result.
+
+### `math_formula`
+
+| Parameter | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `latex` | string, **required** | — | TeX math. Surrounding delimiters are tolerated and stripped. Max 20 000 characters. |
+| `display` | boolean | `true` | Display style (limits under operators, full-size fractions) vs inline style. |
+| `font_size` | number | config `fontSize` (16) | Pixels per em; 6–96. |
+| `color` | string | config `color` (`#000000`) | Flat CSS color: `#111827`, `navy`, `rgb(17,24,39)`. |
+| *common* | | | `format`, `scale`, `background`, `padding`, `path`, `name`, `data_uri`, `preview`. |
+
+A TeX error never throws: MathJax's error marker is drawn into the image and the
+result carries a warning.
+
+### `math_figure`
+
+| Parameter | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `figure` | object, **required** | — | The [figure spec](#figure-spec-reference). |
+| *common* | | | as above (a spec-level `background`/`padding` wins over the parameter). |
+
+### `math_convert`
+
+| Parameter | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `source` | object, **required** | — | Exactly one of `{latex, display?}`, `{svg}`, or `{path}` (`.svg` or `.png`). |
+| `font_size` | number | config `fontSize` (16) | Only for a `latex` source. |
+| `color` | string | config `color` | Only for a `latex` source. |
+| *common* | | | as above. |
+
+A PNG source is passed through as-is (no re-encode): the result points at the
+existing file and returns embed snippets for it.
+
+### Common parameters
+
+| Parameter | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `format` | `svg` \| `png` \| `both` | `both` | `svg` needs no rasterizer. |
+| `scale` | number | config `scale` (4) | PNG zoom; 0.25–16. Pixel size = CSS size × scale. |
+| `background` | string | config `background` (`transparent`) | `transparent` or a flat color; applied to PNG and SVG alike. |
+| `padding` | integer | config `padding` (8) | Transparent margin in pixels at 1×; 0–128. |
+| `path` | string | `math/` + content hash | A file (`.svg`/`.png`) or a directory, workspace-relative. |
+| `name` | string | content hash | Human-readable base name; sanitized to `[A-Za-z0-9._-]`. |
+| `data_uri` | boolean | config `dataUri` (`false`) | Also return `data:image/…;base64,…` strings. |
+| `preview` | boolean | config `preview` (`false`) | Also attach the PNG to the result when the model accepts images. |
+
+Unknown arguments are refused with the list of supported ones; a typo is never
+silently ignored.
+
+## Figure spec reference
+
+Top-level fields of the `figure` object:
+
+| Field | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `width`, `height` | integer | `480`, `360` | Canvas in pixels; 40–4000. |
+| `padding` | integer | the `padding` parameter (8) | Transparent margin around the drawing. |
+| `background` | string | the `background` parameter | `transparent` or a flat color. |
+| `xRange`, `yRange` | `[min, max]` | auto-fit from the elements | Explicit ranges win; auto-fit adds a 6 % margin. |
+| `aspect` | `equal` \| `stretch` | `equal` | `equal` keeps circles circular (it widens the narrower range, like matplotlib's `adjustable="datalim"`); `stretch` fills the canvas — use it for wide function plots. |
+| `vars` | object | `{}` | Named numbers; values may be expressions over earlier names, e.g. `{"a": 3, "b": "2 * a"}`. |
+| `grid` | `true` \| `{step?, color?}` | off | Grid lines at a "nice" step when `step` is omitted. |
+| `axes` | `true` \| `{color?, labels?}` | on for `curve`/`parametric`/`polar`, else off | Axis lines with ticks, tick labels, and `x`/`y` labels. |
+| `title` | string (LaTeX) | — | Drawn top-center. |
+| `elements` | array, **required** | — | At most 200 elements, evaluated in order. |
+
+### Elements
+
+A point is either `[x, y]` — numbers or expression strings — or a **string naming
+an earlier `point` element's `label`**, which is how "the median from A" stays
+readable. Points may only reference points defined before them.
+
+| Element | Fields |
 | --- | --- |
-| `point` | `at`, `label` (LaTeX), `label_offset` (screen px, y down), `size`, `open` |
-| `segment` / `vector` | `from`, `to`, `style` (solid/dashed/dotted), `arrow` (none/end/start/both), `label` |
-| `line` / `ray` | `through` (two points), `extend` (both/forward/backward/none, `line` only) |
-| `polyline` / `polygon` | `points`, `closed`, `fill`, `fill_opacity`, `label` |
-| `circle` | `center` + `radius`, or `center` + `through` |
-| `arc` | `center`, `radius`, `start`, `end` (degrees, counter-clockwise) |
-| `angle` | `at`, `from`, `to`, `radius` (px), `right` (square marker), `label` |
-| `curve` | `y: "sin(x)"`, `domain`, `samples` |
-| `parametric` | `x`, `y` in `t`, `range`, `samples` |
-| `polar` | `r: "2cos(3theta)"`, `range`, `samples` |
-| `text` | `at`, `text` (LaTeX), `size`, `anchor`, `valign`, `rotate` |
+| `point` | `at`, `label` (LaTeX), `label_offset` (screen px, y down; default `[10,-10]`), `label_size` (14), `size` (3), `color`, `open` |
+| `segment` | `from`, `to`, `style` (`solid`/`dashed`/`dotted`), `arrow` (`none`/`end`/`start`/`both`), `color`, `width` (1.6), `label`, `label_offset`, `label_size` |
+| `vector` | `segment` with `arrow` defaulting to `end` |
+| `line` | `through` (exactly two points), `extend` (`both`/`forward`/`backward`/`none`), plus the `segment` stroke/label fields |
+| `ray` | `from`, `through` (one point each), `arrow` (default `end`) |
+| `polyline` / `polygon` | `points`, `closed` (`false` / `true`), `fill`, `fill_opacity` (0.18), `style`, `arrow`, `label` |
+| `circle` | `center` with `radius` **or** `through`; `fill`, `fill_opacity`, `style`, `color`, `width` |
+| `arc` | `center`, `radius`, `start`, `end` (degrees, counter-clockwise), `arrow` |
+| `angle` | `at`, `from`, `to`, `radius` (px, default 30), `right` (square marker), `label`, `label_size` |
+| `curve` | `y` (expression in `x`), `domain` (default `[-5,5]`), `samples` (400) |
+| `parametric` | `x`, `y` (expressions in `t`), `range` (default `[0, 2π]`), `samples` |
+| `polar` | `r` (expression in `theta`), `range` (default `[0, 2π]`), `samples` |
+| `text` | `at`, `text` (LaTeX), `size` (14), `color`, `anchor` (`start`/`middle`/`end`), `valign` (`baseline`/`middle`/`top`/`bottom`), `rotate` |
 
-Top-level fields: `width`, `height`, `padding`, `background`, `xRange`,
-`yRange`, `aspect` (`equal` keeps circles circular, the default), `vars`,
-`grid` (`true` or `{ step, color }`), `axes` (`true` or `{ color, labels }`;
-defaults on when the spec contains `curve`/`parametric`/`polar`), `title`
-(LaTeX), and `elements`.
+Notes that save a round trip:
 
-Coordinate expressions support `+ - * / % ^`, implicit multiplication (`2x`),
-`pi`/`e`/`tau`, and `sin cos tan asin acos atan atan2 sinh cosh tanh sqrt cbrt
-abs exp ln log log2 log10 floor ceil round sign min max pow hypot mod gcd cot
-sec csc`. Every text run is LaTeX — use `\text{…}` for upright words.
+- **Every label is LaTeX** — in math mode. Write `A_1`, `\alpha`,
+  `\frac{\pi}{2}`; use `\text{…}` for upright words.
+- `label_offset` is in **screen pixels**, x right and y **down**.
+- `angle` and `arc` angles are **degrees** and positive angles run
+  counter-clockwise in mathematical orientation; `polar`/`parametric` ranges are
+  in **radians**.
+- `fill` expects an opaque or alpha-hex color (`#93c5fd33`); `fill_opacity` is
+  the escape hatch when you prefer to keep the color plain.
+- Curves are split at the viewport edge instead of being clipped, so a pole like
+  `tan(x)` breaks the line rather than drawing a fake vertical segment.
+- Out-of-domain samples (`ln(x)` for `x ≤ 0`) are skipped and counted in a
+  warning.
+
+## Coordinate expressions
+
+Every coordinate and every curve definition may be an expression. The evaluator
+is a hand-written recursive-descent compiler — model-authored text is never
+`eval`-ed — with a source-length cap and a 64-level nesting cap.
+
+- Operators: `+ - * / % ^` (right-associative), parentheses, unary minus.
+- Implicit multiplication: `2x`, `3sin(x)`, `2(x+1)`, `x y`.
+- Constants: `pi` (or `π`), `tau`, `e`, `phi`.
+- Functions: `sin cos tan asin acos atan atan2 sinh cosh tanh asinh acosh atanh
+  sqrt cbrt abs exp ln log log2 log10 floor ceil round trunc sign min max pow
+  hypot mod gcd cot sec csc`.
+- Backslashes are tolerated: `\sin(\pi/2)` works.
+- Curve variables: `x` (cartesian), `t` (parametric), `theta`/`θ` (polar).
+- Unknown variables, unknown functions, wrong arity, and over-deep nesting are
+  hard errors naming the offender.
+
+## Output: paths, naming, layout
+
+```text
+<session workspace>/
+└── math/                             # configurable via outputDir
+    ├── formula-1f0c9a2b3c4d.svg      # content hash of the formula + options
+    ├── formula-1f0c9a2b3c4d.png
+    ├── triangle.svg                  # when a `name` is given
+    └── triangle.png
+```
+
+- Relative paths are resolved against the **calling session's working
+  directory**, and a path that escapes it — including through a symlinked
+  ancestor — is refused.
+- Files are written atomically (temporary sibling + rename).
+- The result reports both `svg_path` (workspace-relative, for documents) and
+  `svg_host_path` (absolute, for other tools), plus byte counts and both CSS
+  and pixel dimensions.
 
 ## Embedding into documents
 
-Each call returns ready-to-paste snippets (formats that were not produced are
-empty strings):
+| Field | Shape | Use it for |
+| --- | --- | --- |
+| `embed.markdown_svg` / `embed.markdown_png` | `![alt](math/…)` | GitHub, docs sites, most Markdown renderers (SVG stays crisp). |
+| `embed.html_svg` / `embed.html_png` | `<img src="…" width="…" height="…" alt="…">` | HTML with explicit layout dimensions. |
+| `embed.latex_svg` / `embed.latex_png` | `\includegraphics[width=…cm]{…}` | LaTeX (the SVG variant needs the `svg` package or a raster fallback). |
+| `data_uri_svg` / `data_uri_png` | `data:image/…;base64,…` | Documents that cannot reference a sibling file; requires `data_uri: true`. |
 
-| Field | Shape |
-| --- | --- |
-| `embed.markdown_svg` / `embed.markdown_png` | `![…](math/formula-….svg)` |
-| `embed.html_svg` / `embed.html_png` | `<img src="…" width="…" height="…" alt="…">` |
-| `embed.latex_svg` / `embed.latex_png` | `\includegraphics[width=…cm]{…}` |
-| `data_uri_svg` / `data_uri_png` | `data:image/…;base64,…` with `data_uri: true` |
+Formats that were not produced are empty strings, never stale content.
 
-Shared parameters: `format` (`svg`/`png`/`both`, default `both`), `scale` (PNG
-zoom, default 4), `background` (`transparent` or a flat color), `padding`,
-`path` (output file or directory, workspace-relative), `name` (file base name;
-a content hash is used when omitted), `data_uri`, and `preview`.
+## Inline preview
 
-Artifacts land in the workspace's `math/` directory by default and are named by
-content hash, so re-running the same input overwrites the same file instead of
-accumulating copies.
-
-With `preview: true`, the PNG is also attached to the result for inline display
-when the active model declares image input and the deployment mounts a durable
-attachment store. When it does not, the call degrades to a `warnings` entry —
-never an error.
-
-## Requirements
-
-DeepSeek Harness **0.1.5-rc.2**, any profile (this is a Host tool set, so
-`headless` and `web` both work). No Web UI is required. Node ≥ 22.19.
-
-## Install
-
-```sh
-dsh plugin --profile web add @jaxzhou/dsh-mathmatic-symbol
-dsh --profile web
-```
-
-Local checkout or a git ref works too — the runtime artifact is committed, so
-nothing builds at install time:
-
-```sh
-dsh plugin --profile web add /path/to/dsh-mathmatic-symbol
-dsh plugin --profile web add github:jaxzhou/dsh-mathmatic-symbol
-```
-
-Confirm the layer resolved:
-
-```sh
-dsh --profile web --dump-config | grep -A 2 jaxzhou-mathmatic-symbol
-```
+With `preview: true`, the PNG is also attached to the tool result as a durable
+image block, so a Web session can show it inline. This happens only when the
+active model declares image input **and** the deployment mounts a durable
+attachment store; otherwise the call degrades to a `warnings` entry such as
+`inline preview unavailable: model "…" does not declare image input`. It is
+never an error, and the files are always written regardless.
 
 ## Configuration
 
@@ -178,12 +323,16 @@ layer):
     fontSize: 16           # pixels per em for formulas
     preview: false         # default inline preview
     dataUri: false         # default data-URI output
+    # workspaceRoot: /abs/path   # host-side override, mainly for tests
 ```
 
-Invalid configuration fails at mount time; nothing is silently clamped or
-ignored.
+Invalid configuration fails at mount time with the offending field named;
+nothing is clamped or ignored.
 
 ## Disable and uninstall
+
+Disable the tools without uninstalling (live profiles pick it up without a
+restart):
 
 ```yaml
 - id: jaxzhou-mathmatic-symbol
@@ -194,50 +343,74 @@ ignored.
 dsh plugin --profile web remove @jaxzhou/dsh-mathmatic-symbol
 ```
 
+## Requirements and verification
+
+- **DeepSeek Harness `0.1.5-rc.2`** — Host-only plugin: any profile with the
+  tool registry works, `headless`, `tui`, `web`, or a custom composition. No Web
+  UI is required.
+- **Node ≥ 22.19** (the range declared by the Harness).
+- Runtime dependencies: `mathjax-full@^3.2.2` (pure JS) and
+  `@resvg/resvg-js@^2.6.2` (native, only for PNG).
+
+What was verified for `0.1.0`:
+
+- `npm run check`: typecheck, bundle build with artifact-shape assertions, and
+  57 tests, including exact-pixel geometry assertions and an end-to-end pass
+  over the emitted files.
+- The installed Harness's own `assertSupportedJsonSchema` and
+  `validateJsonSchemaValue` accept all three output schemas and live canonical
+  values.
+- A real boot of a `@deepseek-ai/dsh-base` + plugin profile lists
+  `math_formula`, `math_figure`, and `math_convert` in the live registry — both
+  from a local checkout and from the **published npm package**.
+- Not verified: a model-driven tool call with a real LLM (no API key was
+  configured in the build environment). The tool layer itself is covered by the
+  tests above.
+
 ## Privacy and authority
 
-- **Writes only inside the workspace.** Every output path is resolved against
-  the calling session's working directory and checked against symlinked
-  ancestors; an escaping path is refused. By default only content-addressed
-  files under `math/` are created.
-- **No network.** Typesetting, drawing, and rasterizing are entirely local
-  (MathJax and resvg are dependencies, not services).
-- **No credentials, no session data.** The plugin touches no service other than
-  the optional `ctx.attachments.saveImage()`, holds no file permissions, and
-  writes no session logs.
-- **No model-authored code is executed.** Figure expressions go through a
-  hand-written recursive-descent compiler with depth and length caps — never
-  `eval`. LaTeX excludes the `html`/`require`/`autoload` extensions, and SVG
-  passed to `math_convert` is sanitized (scripts, foreign markup, event
-  handlers, DOCTYPE, external references, and remote paint servers are removed
-  and reported one by one).
-- **Degrades on purpose.** Rasterization needs a native binding; when it is
-  unavailable the call still returns SVG output and says so in `warnings`.
+- **Writes only inside the workspace.** Output paths are resolved against the
+  session's working directory and checked against symlinked ancestors.
+- **No network.** Typesetting, drawing and rasterizing are local; MathJax and
+  resvg are dependencies, not services.
+- **No credentials, no session data.** The only service the plugin touches is
+  the optional `ctx.attachments.saveImage()` used by `preview`.
+- **No model-authored code is executed.** Expressions go through the compiler in
+  `src/expr.ts`; LaTeX excludes the `html`/`require`/`autoload` extensions; SVG
+  accepted by `math_convert` is sanitized and every removal is reported.
+- **Degrades on purpose.** Without a prebuilt rasterizer binding, the call still
+  returns SVG and says so in `warnings`.
 
 ## Known limitations
 
-- **Text is paths.** Labels are outlined, so they are not selectable or
-  searchable inside the SVG. That is exactly why the images render without any
-  font installed.
+- **Text is outlines.** Labels are not selectable or searchable inside the
+  image; that is the price of rendering without fonts.
 - **`math_convert` PNG input is pass-through.** Existing PNGs are not
-  re-encoded and JPEG/WebP/GIF dimensions are not parsed; file input accepts
+  re-encoded, and JPEG/WebP/GIF dimensions are not parsed; file input accepts
   only `.svg` and `.png`.
 - **PNG needs the native binding.** Without a prebuilt `@resvg/resvg-js` for the
   platform, only SVG output is available.
-- **`aspect: "equal"` adjusts the view.** When both `xRange` and `yRange` are
-  given, the narrower axis is widened to keep a uniform scale (like
-  matplotlib's `adjustable="datalim"`), so the axes may extend slightly past
-  the ranges you asked for.
-- **One figure per call.** There is no multi-panel/subplot syntax; draw several
-  elements on one canvas or make several calls.
-- **No 3-D and no implicit curves.** Only planar explicit functions,
-  parametric curves, and polar curves.
+- **`aspect: "equal"` adjusts the view.** With both ranges given, the narrower
+  axis is widened so the scale stays uniform, so axes may extend slightly past
+  the ranges you asked for. Use `aspect: "stretch"` for a wide function plot.
+- **One figure per call.** No multi-panel/subplot syntax; draw several elements
+  on one canvas or make several calls.
+- **No 3-D and no implicit curves.** Planar explicit functions, parametric
+  curves and polar curves only.
+- **Default output directory is `math/`.** Point `path` elsewhere, or set
+  `outputDir`, if you keep assets in a different tree.
 
-## Contributing
+## Development
 
-Build, artifact model, dependency policy, and the real-Harness verification
-steps live in [CONTRIBUTING.md](CONTRIBUTING.md); repository rules are in
+Build, artifact model, dependency policy and the real-Harness verification steps
+are in [CONTRIBUTING.md](CONTRIBUTING.md); repository rules are in
 [AGENTS.md](AGENTS.md).
+
+```sh
+npm install
+npm run check        # typecheck + build + tests
+node scripts/render-example.mjs examples/rose.json
+```
 
 ## License
 

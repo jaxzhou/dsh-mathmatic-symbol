@@ -1,0 +1,15 @@
+{
+  "width": 420,
+  "height": 420,
+  "padding": 18,
+  "xRange": [-2.4, 2.4],
+  "yRange": [-2.4, 2.4],
+  "axes": true,
+  "aspect": "equal",
+  "title": "r = 2\\cos 3\\theta",
+  "elements": [
+    { "type": "circle", "center": [0, 0], "radius": 2, "color": "#cbd5e1", "style": "dotted", "width": 1 },
+    { "type": "polar", "r": "2cos(3theta)", "range": [0, 3.141592653589793], "samples": 720, "color": "#be123c", "width": 2 },
+    { "type": "text", "at": [1.15, 1.55], "text": "\\text{three petals}", "size": 12, "color": "#64748b" }
+  ]
+}

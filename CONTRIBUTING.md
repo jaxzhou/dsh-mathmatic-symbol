@@ -23,6 +23,8 @@ resulting `lib/` files in the same commit.
 | --- | --- |
 | `src/index.ts` | Host entry: `name`, `inject`, `apply`, plus the pure-function surface used by tests |
 | `src/dsh.ts` | Structural mirror of the Harness seams this plugin uses (no `@deepseek-ai/*` runtime imports) |
+| `examples/` | Figure specs referenced by both READMEs; `tests/examples.test.mjs` renders every one of them |
+| `scripts/render-example.mjs` | Renders one example spec to SVG + PNG without booting a profile |
 | `src/latex.ts` | MathJax v3 TeX → font-free SVG fragments, standalone SVG, and inline fragments |
 | `src/figure.ts` | Figure-spec validation, resolution, and SVG drawing |
 | `src/expr.ts` | Safe arithmetic expression compiler for coordinates and curves |

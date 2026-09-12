@@ -16,6 +16,8 @@
     "README.md",
     "README.zh.md",
     "media/demo.png",
+    "examples",
+    "scripts/render-example.mjs",
     "LICENSE"
   ],
   "license": "MIT",

@@ -1,0 +1,19 @@
+{
+  "width": 420,
+  "height": 320,
+  "xRange": [-1, 5],
+  "yRange": [-1, 4],
+  "axes": true,
+  "grid": true,
+  "aspect": "equal",
+  "vars": { "a": 3, "b": "2 * a" },
+  "elements": [
+    { "type": "polygon", "points": [[0, 0], [4, 0], [0, "a"]], "fill": "#93c5fd", "fill_opacity": 0.25 },
+    { "type": "point", "at": [0, 0], "label": "A", "label_offset": [-14, 12] },
+    { "type": "point", "at": [4, 0], "label": "B", "label_offset": [14, 12] },
+    { "type": "point", "at": [0, "a"], "label": "C", "label_offset": [-14, -12] },
+    { "type": "segment", "from": "A", "to": "B", "label": "c", "label_offset": [0, 14] },
+    { "type": "angle", "at": "B", "from": "A", "to": "C", "label": "\\beta" },
+    { "type": "angle", "at": "A", "from": "B", "to": "C", "right": true }
+  ]
+}
