@@ -165,6 +165,17 @@ test('unknown and malformed arguments fail loudly', async () => {
   await assert.rejects(tool.execute({ latex: 'x', background: 'url(http://evil)' }, exec), /"background" must be "transparent" or a flat CSS color/)
 })
 
+test('embed snippets place the PNG at the 1× display size, not the raster size', async () => {
+  const { tools } = mount({})
+  const value = await tools.get('math_formula').execute({ latex: 'x', scale: 4 }, exec)
+  assert.equal(value.pixel_width, value.width * 4)
+  assert.ok(value.embed.html_png.includes(`width="${value.width}" height="${value.height}"`), value.embed.html_png)
+  assert.ok(value.embed.html_svg.includes(`width="${value.width}" height="${value.height}"`))
+  const centimeters = ((value.width / 96) * 2.54).toFixed(2)
+  assert.ok(value.embed.latex_png.includes(`width=${centimeters}cm`), value.embed.latex_png)
+  assert.ok(value.embed.latex_svg.includes(`width=${centimeters}cm`))
+})
+
 test('an unavailable inline preview degrades to a warning, never an error', async () => {
   const { tools } = mount({})
   const value = await tools.get('math_formula').execute({ latex: 'q', preview: true }, exec)

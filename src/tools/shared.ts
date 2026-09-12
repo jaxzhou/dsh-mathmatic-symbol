@@ -261,8 +261,10 @@ export async function publishSvg(input: PublishSvgInput): Promise<MathImageValue
   const svgImage = svgPath !== null
     ? { relativePath: svgPath, width: input.svgWidth, height: input.svgHeight }
     : undefined
-  const pngImage = pngPath !== null && pngSize !== undefined
-    ? { relativePath: pngPath, width: pngSize.width, height: pngSize.height }
+  // Both formats are advertised at the 1× display size: a 4× raster is a
+  // high-density asset for the same layout box, not a 4× larger picture.
+  const pngImage = pngPath !== null
+    ? { relativePath: pngPath, width: input.svgWidth, height: input.svgHeight }
     : undefined
   const { embed, data_uri_svg, data_uri_png } = buildEmbeds(input.altText, {
     ...svgImage !== undefined ? { svg: svgImage } : {},
