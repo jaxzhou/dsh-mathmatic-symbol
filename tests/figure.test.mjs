@@ -138,6 +138,42 @@ test('the spec is validated with a path-annotated error', async () => {
   )
 })
 
+test('line and ray extent modes clip to the correct half-line', async () => {
+  const base = { width: 200, height: 200, padding: 16, xRange: [-2, 2], yRange: [-2, 2], axes: false }
+  // Equal aspect over a square canvas: scale 42, so the origin is at (100, 100).
+  const ray = await renderFigure({ ...base, elements: [{ type: 'ray', from: [0, 0], through: [1, 1] }] })
+  assert.equal(paths(ray.svg)[0], 'M100 100 L184 16')
+  const backward = await renderFigure({ ...base, elements: [{ type: 'line', through: [[0, 0], [1, 1]], extend: 'backward' }] })
+  assert.equal(paths(backward.svg)[0], 'M16 184 L100 100')
+  const both = await renderFigure({ ...base, elements: [{ type: 'line', through: [[0, 0], [1, 1]] }] })
+  assert.equal(paths(both.svg)[0], 'M16 184 L184 16')
+  const segment = await renderFigure({ ...base, elements: [{ type: 'line', through: [[0, 0], [1, 1]], extend: 'none' }] })
+  assert.equal(paths(segment.svg)[0], 'M100 100 L142 58')
+})
+
+test('the documented README example renders warning-free', async () => {
+  // Kept byte-identical to the JSON printed in README.md / README.zh.md.
+  const rendered = await renderFigure({
+    width: 420, height: 320,
+    xRange: [-1, 5], yRange: [-1, 4],
+    axes: true, grid: true, aspect: 'equal',
+    vars: { a: 3, b: '2 * a' },
+    elements: [
+      { type: 'polygon', points: [[0, 0], [4, 0], [0, 'a']], fill: '#93c5fd', fill_opacity: 0.25 },
+      { type: 'point', at: [0, 0], label: 'A', label_offset: [-14, 12] },
+      { type: 'point', at: [4, 0], label: 'B', label_offset: [14, 12] },
+      { type: 'point', at: [0, 'a'], label: 'C', label_offset: [-14, -12] },
+      { type: 'segment', from: 'A', to: 'B', label: 'c', label_offset: [0, 14] },
+      { type: 'angle', at: 'B', from: 'A', to: 'C', label: '\\beta' },
+      { type: 'angle', at: 'A', from: 'B', to: 'C', right: true },
+    ],
+  })
+  assert.deepEqual(rendered.warnings, [])
+  assert.equal(rendered.width, 420)
+  assert.equal(rendered.height, 320)
+  assert.equal((rendered.svg.match(/<circle /g) ?? []).length, 3)
+})
+
 test('ids and element names are deterministic for identical specs', async () => {
   const spec = { width: 200, height: 200, elements: [{ type: 'point', at: [1, 1], label: 'A' }] }
   const first = await renderFigure(spec, { idSeed: 'demo' })

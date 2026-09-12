@@ -116,7 +116,8 @@ type Prim =
 interface InfiniteLine {
   a: [number, number]
   b: [number, number]
-  mode: 'infinite' | 'ray' | 'segment'
+  /** `infinite` covers both directions, `forward` from `a` through `b`, `backward` the opposite, `segment` just `a`–`b`. */
+  mode: 'infinite' | 'forward' | 'backward' | 'segment'
   color: string
   width: number
   style: StrokeStyle
@@ -364,7 +365,7 @@ const ELEMENT_KEYS: Readonly<Record<string, readonly string[]>> = {
   point: ['type', 'at', 'label', 'label_offset', 'label_size', 'size', 'color', 'open'],
   segment: ['type', 'from', 'to', 'color', 'width', 'style', 'arrow', 'label', 'label_offset', 'label_size'],
   line: ['type', 'through', 'color', 'width', 'style', 'extend', 'label', 'label_offset', 'label_size'],
-  ray: ['type', 'from', 'through', 'color', 'width', 'style', 'arrow'],
+  ray: ['type', 'from', 'through', 'color', 'width', 'style', 'arrow', 'label', 'label_offset', 'label_size'],
   vector: ['type', 'from', 'to', 'color', 'width', 'style', 'arrow', 'label', 'label_offset', 'label_size'],
   circle: ['type', 'center', 'radius', 'through', 'color', 'width', 'style', 'fill', 'fill_opacity'],
   arc: ['type', 'center', 'radius', 'start', 'end', 'color', 'width', 'style', 'arrow'],
@@ -535,8 +536,7 @@ function resolveElement(raw: unknown, index: number, state: ResolveState): void 
       }
       return
     }
-    case 'line':
-    case 'ray': {
+    case 'line': {
       const through = pointList(element.through, `${path}.through`, state)
       if (through.length !== 2) fail(`${path}.through`, 'must contain exactly two points')
       const a = through[0] as [number, number]
@@ -548,17 +548,36 @@ function resolveElement(raw: unknown, index: number, state: ResolveState): void 
       state.lines.push({
         a,
         b,
-        mode: type === 'ray' ? 'ray' : extendMode === 'none' ? 'segment' : 'infinite',
+        mode: extendMode === 'both' ? 'infinite' : extendMode === 'none' ? 'segment' : extendMode,
         color: readColor(element, 'color', path, DEFAULT_INK),
         width: numberField(element, 'width', path, DEFAULT_STROKE),
         style: readStyle(element, path),
-        arrow: readArrow(element, path, type === 'ray' ? 'end' : 'none'),
+        arrow: readArrow(element, path, 'none'),
         label: optionalString(element, 'label', path) ?? null,
         labelSize: numberField(element, 'label_size', path, LABEL_SIZE),
         labelOffset: readOffset(element, path, [0, -10]),
       })
       extend(state, a[0], a[1])
       extend(state, b[0], b[1])
+      return
+    }
+    case 'ray': {
+      const from = pointRef(element.from, `${path}.from`, state)
+      const through = pointRef(element.through, `${path}.through`, state)
+      state.lines.push({
+        a: from,
+        b: through,
+        mode: 'forward',
+        color: readColor(element, 'color', path, DEFAULT_INK),
+        width: numberField(element, 'width', path, DEFAULT_STROKE),
+        style: readStyle(element, path),
+        arrow: readArrow(element, path, 'end'),
+        label: optionalString(element, 'label', path) ?? null,
+        labelSize: numberField(element, 'label_size', path, LABEL_SIZE),
+        labelOffset: readOffset(element, path, [0, -10]),
+      })
+      extend(state, from[0], from[1])
+      extend(state, through[0], through[1])
       return
     }
     case 'circle': {
@@ -750,8 +769,8 @@ function clipLine(
 ): [[number, number], [number, number]] | undefined {
   const dx = b[0] - a[0]
   const dy = b[1] - a[1]
-  let t0 = mode === 'segment' ? 0 : -1e6
-  let t1 = mode === 'segment' ? 1 : 1e6
+  let t0 = mode === 'infinite' || mode === 'backward' ? -1e6 : 0
+  let t1 = mode === 'infinite' || mode === 'forward' ? 1e6 : mode === 'backward' ? 0 : 1
   const tests: readonly [number, number][] = [
     [-dx, a[0] - bounds.x0],
     [dx, bounds.x1 - a[0]],
