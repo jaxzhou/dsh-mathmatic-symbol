@@ -9,17 +9,29 @@ there; this repository's own rules below remain authoritative.
 ## What this repository is
 
 A **Host-only** DSH plugin (delivery track: Host). It ships one runtime
-artifact — `lib/index.js` — which registers three model-facing tools on the
-Harness tool registry. There is no browser half, no `dsh.client` declaration,
-and no Remote/service contribution.
+artifact — `lib/index.js` — which registers four model-facing tools on the
+Harness tool registry (`math_formula`, `math_figure`, `math_convert`,
+`math_document`) plus one ordered system-prompt section (`tool:math-symbol`)
+that tells the model when to reach for them. There is no browser half, no
+`dsh.client` declaration, and no Remote/service contribution.
 
 ## Rules for this repository
 
-- **The extension point is inspected, never guessed.** `ctx.tools.register()`
-  and the enforced output-schema subset were read from
-  `packages/core/tools/src/{index,json-schema}.ts` at the verified Harness
-  version before any code was written. Re-inspect the target version before
-  changing registration, the value schema, or the image-content path.
+- **The extension point is inspected, never guessed.** `ctx.tools.register()`,
+  `ctx.systemPrompt.section()`/`getSectionOrder()`, and the enforced
+  output-schema subset were read from `packages/core/tools/src/{index,json-schema}.ts`
+  and `packages/core/system-prompt/src/index.ts` at the verified Harness version
+  before any code was written. Re-inspect the target version before changing
+  registration, the value schemas, the prompt section, or the image-content path.
+- **Prompt guidance is on demand and visibility-gated.** The section must state
+  the trigger (an image or a document file is the deliverable) rather than always
+  demanding the tools, and its text provider must resolve the tools that are
+  visible in the calling scope and return `''` when none are — never name a tool
+  the scope cannot call.
+- **A tool never asks the model to do image bookkeeping.** Every tool writes its
+  own files, names them content-addressed, and returns the references; the
+  document tool additionally computes document-relative paths. If a change would
+  require the caller to derive a path or re-encode an image, the design is wrong.
 - **No `@deepseek-ai/*` runtime imports.** `src/dsh.ts` is a structural mirror
   of the few seams this plugin uses (`ctx.tools`, `ctx.get`, `ctx.effect`,
   `ContentBlock`, image attachment admission). Tools are registered as raw

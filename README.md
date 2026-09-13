@@ -8,11 +8,17 @@ English | [中文](README.zh.md)
 > The npm package name is **`@jaxzhou/dsh-mathmatic-symbol`**.
 
 A [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) plugin that
-gives the agent three tools: **typeset LaTeX into an image**, **draw a
+gives the agent four tools: **typeset LaTeX into an image**, **draw a
 mathematical figure from a declarative spec**, and **convert a formula or SVG
 into an image ready to drop into a document**. Every artifact is a
 **font-free SVG** — each glyph is an outline `<path>` — plus an optional **PNG**,
 returned together with Markdown / HTML / LaTeX snippets.
+
+The plugin also registers prompt guidance that tells the model *when* to reach for
+it — an image or a document file is the deliverable, or the user asks for one — and
+not to hand-write SVG, LaTeX-rendering, or plotting code instead. In a session with
+this plugin installed, producing a formula image, a geometric figure, or a document
+containing them is a tool call, not a coding exercise.
 
 ```sh
 dsh plugin --profile web add @jaxzhou/dsh-mathmatic-symbol
@@ -30,9 +36,11 @@ installed font.*
 
 - [Why images instead of text](#why-images-instead-of-text)
 - [Quick start](#quick-start)
-- [The three tools](#the-three-tools) · [`math_formula`](#math_formula) · [`math_figure`](#math_figure) · [`math_convert`](#math_convert)
+- [When the agent reaches for these tools](#when-the-agent-reaches-for-these-tools)
+- [The four tools](#the-four-tools) · [`math_formula`](#math_formula) · [`math_figure`](#math_figure) · [`math_convert`](#math_convert) · [`math_document`](#math_document)
 - [Figure spec reference](#figure-spec-reference)
 - [Coordinate expressions](#coordinate-expressions)
+- [Documents with formulas and figures inserted](#documents-with-formulas-and-figures-inserted)
 - [Output: paths, naming, layout](#output-paths-naming-layout)
 - [Embedding into documents](#embedding-into-documents)
 - [Inline preview](#inline-preview)
@@ -122,7 +130,32 @@ More specs you can render as-is: [`examples/unit-circle.json`](examples/unit-cir
 [`examples/function-plot.json`](examples/function-plot.json) (a `stretch`-aspect
 function plot).
 
-**Conversion.** `math_convert` handles what the other two do not: an existing
+**A document.** `math_document` renders the formulas and figures and inserts them
+for you — no paths to invent, no markup to splice:
+
+```
+math_document({
+  path: "docs/report.md",
+  body: "# Area of a disc\n\nThe area is $A=\\pi r^2$ for radius $r$.\n\n$$A = \\int_0^1 2\\pi r\\,dr$$\n\n{{figure:triangle}}\n",
+  math: "image",
+  figures: { triangle: { /* a math_figure spec */ } }
+})
+```
+
+→ writes `docs/report.md` plus `docs/report-assets/*.svg|png`, referencing each
+image **relative to the document**:
+
+```text
+<document format="markdown" path="docs/report.md" bytes="262" math="image" self_contained="false">
+assets: docs/report-assets (4 images)
+  $A=\pi r^2$ → docs/report-assets/formula-83490f278b73.svg (73x32)
+  $r$ → docs/report-assets/formula-86965ab96917.svg (32x32)
+  $$A = \int_0^1 2\pi r\,dr$$ → docs/report-assets/formula-65e3b2edd39f.svg (118x56)
+  {{figure:triangle}} → docs/report-assets/triangle-7f4ecb6f5507.svg (300x240)
+</document>
+```
+
+**Conversion.** `math_convert` handles what the others do not: an existing
 SVG string, or an SVG/PNG file already in the workspace.
 
 ```
@@ -144,10 +177,45 @@ node scripts/render-example.mjs examples/rose.json          # writes .tmp/exampl
 node scripts/render-example.mjs examples/triangle.json out --scale=2
 ```
 
-## The three tools
+## When the agent reaches for these tools
 
-All three share the [common parameters](#common-parameters) and return the same
-structured result.
+Tool descriptions say what a tool can do; they do not stop a model from writing its
+own SVG, shelling out to a plotting library, or inventing image paths. So the plugin
+also registers one ordered system-prompt section (`tool:math-symbol`, at the
+`TOOL_REPORT` position) that states the trigger and the boundary:
+
+> Math and figures: when a formula or a geometric/function figure is needed as an
+> *image*, or a document with such images embedded is the deliverable (or the user
+> asks for one), use these tools rather than writing your own rendering code …
+> Every call writes the image files into the session workspace, names them
+> content-addressed, and returns paths plus ready-to-paste Markdown/HTML/LaTeX
+> snippets — use what the tool returns; do not re-derive paths, re-encode images, or
+> re-implement the rendering with SVG, LaTeX tooling, or a plotting library.
+> Ordinary chat answers keep using LaTeX text directly; these tools are for image or
+> document deliverables.
+
+Two properties matter:
+
+- **On demand, not always.** An answer that merely mentions a formula still uses
+  LaTeX text; the tools appear when an image or a document file is the deliverable.
+- **Self-collapsing.** The section resolves the *visible* tools on every assembly
+  and returns an empty string when none are in scope, so hiding the tools also
+  hides the instruction to use them.
+
+It is registered through `ctx.inject(['systemPrompt'], …)`: a composition without a
+system prompt still gets the tools, it just loses the steering text.
+
+## The four tools
+
+| Tool | What it does | Typical request |
+| --- | --- | --- |
+| **`math_formula`** | LaTeX math → SVG + PNG image files | "turn this formula into an image for my doc" |
+| **`math_figure`** | Declarative geometry/function figure → SVG + PNG | "draw a unit circle / triangle / rose curve" |
+| **`math_convert`** | Formula, inline SVG, or workspace SVG/PNG → embeddable images | "convert this SVG to PNG" |
+| **`math_document`** | Markdown/HTML/LaTeX document with formulas and figures already rendered and inserted | "write this up as a document with the diagrams in it" |
+
+All four share the [common parameters](#common-parameters) and return a structured
+result.
 
 ### `math_formula`
 
@@ -180,6 +248,22 @@ result carries a warning.
 
 A PNG source is passed through as-is (no re-encode): the result points at the
 existing file and returns embed snippets for it.
+
+### `math_document`
+
+| Parameter | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `path` | string, **required** | — | Workspace-relative document path. The format extension is appended when missing and must match `format` when present. |
+| `body` | string, **required** | — | Body in the chosen syntax, with `$…$`, `$$…$$`, `\$` and `{{figure:name}}` tokens. |
+| `format` | `markdown` \| `html` \| `latex` | `markdown` | Syntax and output extension. |
+| `title` | string | — | HTML `<title>`; a prepended `# ` heading for Markdown (when the body has none); a `\section*` for LaTeX. |
+| `math` | `native` \| `image` | `native` | `native` leaves formulas as markup; `image` replaces every formula with a rendered image. |
+| `image_format` | `svg` \| `png` \| `both` | `both` | Markdown/HTML reference SVG; LaTeX references PNG. |
+| `figures` | object | `{}` | Map of placeholder name → `math_figure` spec. Only referenced figures are rendered. |
+| `assets_dir` | string | `<document name>-assets` beside the document | Where the generated images go. |
+| `self_contained` | boolean | `false` | Inline images as base64 data URIs for one self-sufficient file; writes no asset files, and is not available for LaTeX. |
+| `scale`, `background`, `color`, `font_size` | | plugin config | Image options for the generated assets. |
+| `mathjax` | boolean | `true` | For HTML with `math: "native"`: include a MathJax CDN bootstrap so `$…$` typesets. |
 
 ### Common parameters
 
@@ -268,6 +352,33 @@ is a hand-written recursive-descent compiler — model-authored text is never
 - Unknown variables, unknown functions, wrong arity, and over-deep nesting are
   hard errors naming the offender.
 
+## Documents with formulas and figures inserted
+
+`math_document` is the "give me the file" tool. Three things make it more than a
+concatenation:
+
+- **References are relative to the document.** An asset written to
+  `docs/report-assets/` is referenced as `report-assets/…` from `docs/report.md`, so
+  the pair can be moved or committed together.
+- **Insertion is format-correct.** Markdown gets `![alt](path)`; HTML gets
+  `<img … width height alt>` with inline math baseline-aligned through
+  `vertical-align`; LaTeX gets `\includegraphics[width=…cm]` — wrapped in a centered
+  environment for display math and figures, and raised by its ink depth
+  (`\raisebox`) for inline math, so formulas sit on the baseline instead of floating.
+- **Self-contained is one flag.** `self_contained: true` inlines every image as a
+  base64 data URI and writes no asset files: one file you can paste into a ticket
+  or open from anywhere. (LaTeX is refused, because `\includegraphics` needs a file.)
+
+`math: "native"` is the default and the lighter choice: formulas stay as markup for
+the renderer to typeset, and only figures become images. Choose `math: "image"` when
+the target cannot typeset math — Word, a plain-text pipeline, PDF conversion — or
+when the user asks for formula images. For HTML with native math the wrapper
+includes a MathJax CDN bootstrap (disable with `mathjax: false` to supply your own).
+
+Nothing is dropped silently: a `{{figure:name}}` without a matching spec is a hard
+error listing the names you provided, and a provided-but-unreferenced figure is
+reported as a warning.
+
 ## Output: paths, naming, layout
 
 ```text
@@ -352,20 +463,25 @@ dsh plugin --profile web remove @jaxzhou/dsh-mathmatic-symbol
 - Runtime dependencies: `mathjax-full@^3.2.2` (pure JS) and
   `@resvg/resvg-js@^2.6.2` (native, only for PNG).
 
-What was verified for `0.1.0`:
+What is verified in this repository:
 
-- `npm run check`: typecheck, bundle build with artifact-shape assertions, and
-  57 tests, including exact-pixel geometry assertions and an end-to-end pass
-  over the emitted files.
+- `npm run check`: typecheck, bundle build with artifact-shape assertions, and the
+  test suite — exact-pixel geometry assertions, document assembly per format, and
+  end-to-end runs over the emitted files.
 - The installed Harness's own `assertSupportedJsonSchema` and
-  `validateJsonSchemaValue` accept all three output schemas and live canonical
+  `validateJsonSchemaValue` accept all four output schemas and live canonical
   values.
-- A real boot of a `@deepseek-ai/dsh-base` + plugin profile lists
-  `math_formula`, `math_figure`, and `math_convert` in the live registry — both
-  from a local checkout and from the **published npm package**.
-- Not verified: a model-driven tool call with a real LLM (no API key was
-  configured in the build environment). The tool layer itself is covered by the
-  tests above.
+- A real boot of a `@deepseek-ai/dsh-base` + plugin profile lists all four tools in
+  the live registry (29 tools total) **and** assembles the `tool:math-symbol`
+  guidance section into the real system prompt.
+- Not verified: a model-driven tool call with a real LLM (no API key in the build
+  environment). The tool layer, the schemas, and the prompt section are covered by
+  the checks above.
+
+Published state: **`0.1.0` on npm was built before `math_document` and the prompt
+section existed** — it registers three tools. The four-tool build is this
+repository's `main`, which is what a local `dsh plugin add <checkout>` install
+runs.
 
 ## Privacy and authority
 
@@ -399,6 +515,16 @@ What was verified for `0.1.0`:
   curves and polar curves only.
 - **Default output directory is `math/`.** Point `path` elsewhere, or set
   `outputDir`, if you keep assets in a different tree.
+- **Documents are generated whole.** `math_document` writes a complete file and
+  overwrites it on re-run; there is no incremental edit, and hand-edits to a
+  generated document are lost if you regenerate it. Use it to produce final
+  output, not to maintain a living document.
+- **Native math in HTML pulls a CDN script.** The MathJax bootstrap is a
+  `<script>` from jsDelivr; use `mathjax: false` to supply your own, or
+  `math: "image"` for a fully offline document.
+- **Inline math images in Markdown sit on the baseline.** Only HTML and LaTeX get
+  explicit baseline correction (`vertical-align`, `\raisebox`); Markdown renderers
+  decide image alignment themselves.
 
 ## Development
 

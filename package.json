@@ -1,7 +1,7 @@
 {
   "name": "@jaxzhou/dsh-mathmatic-symbol",
   "version": "0.1.0",
-  "description": "DeepSeek Harness plugin: generate LaTeX math typeset as font-free SVG/PNG images, and draw geometry/function figures from a declarative SVG spec, ready to embed in documents",
+  "description": "DeepSeek Harness plugin: typeset LaTeX as font-free SVG/PNG images, draw geometry and function figures from a declarative spec, convert formulas or SVG into embeddable images, and assemble documents with those images inserted",
   "type": "module",
   "main": "./lib/index.js",
   "exports": {
@@ -32,7 +32,11 @@
     "svg",
     "geometry",
     "figure",
-    "png"
+    "png",
+    "document",
+    "markdown",
+    "report",
+    "latex-to-image"
   ],
   "repository": {
     "type": "git",

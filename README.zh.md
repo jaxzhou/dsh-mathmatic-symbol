@@ -8,9 +8,14 @@
 > npm 包名是 **`@jaxzhou/dsh-mathmatic-symbol`**。
 
 一个 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 插件，
-给 agent 三个工具：**把 LaTeX 排成图片**、**用声明式规格画数学图形**、**把公式或
-SVG 转成可直接放进文档的图片**。产物一律是**自带字形轮廓的 SVG**（每个字形都是
-`<path>`，不依赖字体）加一个可选的 **PNG**，并附带 Markdown / HTML / LaTeX 片段。
+给 agent 四个工具：**把 LaTeX 排成图片**、**用声明式规格画数学图形**、**把公式或 SVG
+转成可直接放进文档的图片**，以及**把公式与图形都插好地生成一份文档**。产物一律是
+**自带字形轮廓的 SVG**（每个字形都是 `<path>`，不依赖字体）加一个可选的 **PNG**，并附带
+Markdown / HTML / LaTeX 片段。
+
+插件还会注册一段提示词指引，告诉模型**何时**该用它——当交付物是一张图片或一份文档文件，
+或用户明确要求时——并且不要自己手写 SVG、LaTeX 渲染或绘图代码。装上这个插件的会话里，
+生成公式图、几何图形或含它们的文档，是一次工具调用，而不是一次编程。
 
 ```sh
 dsh plugin --profile web add @jaxzhou/dsh-mathmatic-symbol
@@ -27,9 +32,11 @@ LaTeX 标题。图里没有任何一处依赖已安装的字体。*
 
 - [为什么要图片而不是文字](#为什么要图片而不是文字)
 - [快速开始](#快速开始)
-- [三个工具](#三个工具) · [`math_formula`](#math_formula) · [`math_figure`](#math_figure) · [`math_convert`](#math_convert)
+- [何时该用这些工具](#何时该用这些工具)
+- [四个工具](#四个工具) · [`math_formula`](#math_formula) · [`math_figure`](#math_figure) · [`math_convert`](#math_convert) · [`math_document`](#math_document)
 - [图形规格参考](#图形规格参考)
 - [坐标表达式](#坐标表达式)
+- [把公式与图形插进文档](#把公式与图形插进文档)
 - [输出：路径、命名、布局](#输出路径命名布局)
 - [嵌入文档](#嵌入文档)
 - [内联预览](#内联预览)
@@ -113,7 +120,32 @@ math_figure({ figure: { …见 examples/triangle.json… }, name: "triangle" })
 [`examples/function-plot.json`](examples/function-plot.json)（`stretch` 比例的
 函数图像）。
 
-**一次转换。** `math_convert` 处理另外两个工具覆盖不到的情况：已有的 SVG 字符串，
+**一份文档。** `math_document` 负责渲染公式与图形并**替你插好**——不用编路径，也不用拼
+标记：
+
+```
+math_document({
+  path: "docs/report.md",
+  body: "# 圆盘面积\n\n半径 $r$ 的面积为 $A=\\pi r^2$。\n\n$$A = \\int_0^1 2\\pi r\\,dr$$\n\n{{figure:triangle}}\n",
+  math: "image",
+  figures: { triangle: { /* 一份 math_figure 规格 */ } }
+})
+```
+
+→ 写出 `docs/report.md` 与 `docs/report-assets/*.svg|png`，且每张图都按**相对文档**的路径
+引用：
+
+```text
+<document format="markdown" path="docs/report.md" bytes="262" math="image" self_contained="false">
+assets: docs/report-assets (4 images)
+  $A=\pi r^2$ → docs/report-assets/formula-83490f278b73.svg (73x32)
+  $r$ → docs/report-assets/formula-86965ab96917.svg (32x32)
+  $$A = \int_0^1 2\pi r\,dr$$ → docs/report-assets/formula-65e3b2edd39f.svg (118x56)
+  {{figure:triangle}} → docs/report-assets/triangle-7f4ecb6f5507.svg (300x240)
+</document>
+```
+
+**一次转换。** `math_convert` 处理另外几个工具覆盖不到的情况：已有的 SVG 字符串，
 或工作区里已有的 SVG/PNG 文件。
 
 ```
@@ -133,9 +165,38 @@ node scripts/render-example.mjs examples/rose.json          # 写出 .tmp/exampl
 node scripts/render-example.mjs examples/triangle.json out --scale=2
 ```
 
-## 三个工具
+## 何时该用这些工具
 
-三者共享[公共参数](#公共参数)，并返回同一种结构化结果。
+工具描述说的是「能做什么」，但拦不住模型自己写 SVG、调绘图库或凭空编图片路径。所以插件
+还注册了一段有序的系统提示词段落（`tool:math-symbol`，位于 `TOOL_REPORT` 位置），把触发
+条件和边界讲清楚：
+
+> 数学与图形：当公式或几何／函数图形需要以**图片**形式出现，或交付物是一份内嵌这些图片
+> 的文档（或者用户明确要求）时，使用这些工具，而不是自己写渲染代码……每次调用都会把图片
+> 写进会话工作区、按内容命名，并返回路径与可直接粘贴的 Markdown/HTML/LaTeX 片段——直接用
+> 工具返回的内容；不要自己推路径、重新编码图片，或用 SVG、LaTeX 工具链、绘图库重新实现
+> 渲染。普通对话回答仍然直接使用 LaTeX 文本；这些工具面向图片或文档交付物。
+
+两点值得注意：
+
+- **按需，而不是总是。** 只是提到公式的回答仍然用 LaTeX 文本；当交付物是图片或文档文件时
+  工具才登场。
+- **会自我收敛。** 该段落在每次组装时按**当前可见**的工具生成，一个都不可见时返回空字符串，
+  因此限制或隐藏工具的同时也隐藏了「去用它」的指令。
+
+它通过 `ctx.inject(['systemPrompt'], …)` 注册：没有系统提示词的组合仍然能拿到工具，只是少了
+这段指引。
+
+## 四个工具
+
+| 工具 | 做什么 | 典型说法 |
+|---|---|---|
+| **`math_formula`** | LaTeX 公式 → SVG + PNG 图片文件 | “把这个公式做成图片放进文档” |
+| **`math_figure`** | 声明式几何／函数图形 → SVG + PNG | “画个单位圆／三角形／玫瑰线” |
+| **`math_convert`** | 已有公式／SVG 字符串／工作区 SVG/PNG 文件 → 可嵌入图片 | “把这段 SVG 转成 PNG” |
+| **`math_document`** | 把公式与图形都渲染并插好，生成 Markdown/HTML/LaTeX 文档 | “把这些写成一个带图的文档” |
+
+四者共享[公共参数](#公共参数)，并返回结构化结果。
 
 ### `math_formula`
 
@@ -166,6 +227,22 @@ TeX 语法错误不会抛异常：MathJax 的错误标记会画进图片，结�
 | *公共* | | | 同上。 |
 
 PNG 源是直通（不重新编码）：结果指向已有文件，并给出它的嵌入片段。
+
+### `math_document`
+
+| 参数 | 类型 | 默认 | 说明 |
+| --- | --- | --- | --- |
+| `path` | string，**必填** | — | 工作区相对的文档路径。缺少扩展名时会按 `format` 补上；已有扩展名则必须与 `format` 一致。 |
+| `body` | string，**必填** | — | 目标语法的正文，可使用 `$…$`、`$$…$$`、`\$` 与 `{{figure:name}}`。 |
+| `format` | `markdown` \| `html` \| `latex` | `markdown` | 语法与输出扩展名。 |
+| `title` | string | — | HTML 的 `<title>`；Markdown 在正文没有标题时补一个 `# `；LaTeX 生成 `\section*`。 |
+| `math` | `native` \| `image` | `native` | `native` 保留公式标记交给渲染器排版；`image` 把每个公式换成渲染好的图片。 |
+| `image_format` | `svg` \| `png` \| `both` | `both` | Markdown/HTML 引用 SVG，LaTeX 引用 PNG。 |
+| `figures` | object | `{}` | 占位名 → `math_figure` 规格 的映射；只渲染被引用到的图形。 |
+| `assets_dir` | string | 文档旁的 `<文档名>-assets` | 生成图片的存放目录。 |
+| `self_contained` | boolean | `false` | 把图片内联成 base64 data URI，产出单文件（不写资源文件；LaTeX 不支持）。 |
+| `scale`、`background`、`color`、`font_size` | | 插件配置 | 生成图片的样式选项。 |
+| `mathjax` | boolean | `true` | HTML + `math: "native"` 时插入 MathJax CDN 引导脚本，使 `$…$` 能排版。 |
 
 ### 公共参数
 
@@ -249,6 +326,28 @@ PNG 源是直通（不重新编码）：结果指向已有文件，并给出它�
 - 曲线变量：`x`（直角坐标）、`t`（参数方程）、`theta`/`θ`（极坐标）。
 - 未知变量、未知函数、参数个数不对、嵌套过深都会直接报错，并指出具体位置。
 
+## 把公式与图形插进文档
+
+`math_document` 是「给我文件」的那个工具。让它不止是字符串拼接的有三点：
+
+- **引用相对文档。** 资源写到 `docs/report-assets/` 后，从 `docs/report.md` 里以
+  `report-assets/…` 引用，因此两者可以整体移动或一起提交。
+- **插入方式与格式匹配。** Markdown 得到 `![alt](path)`；HTML 得到
+  `<img … width height alt>`，行内公式通过 `vertical-align` 对齐基线；LaTeX 得到
+  `\includegraphics[width=…cm]`——行间公式与图形包在居中环境里，行内公式则按墨迹深度
+  用 `\raisebox` 抬升，公式因此落在基线上而不是飘着。
+- **单文件只要一个开关。** `self_contained: true` 会把每张图内联成 base64 data URI 且
+  不写资源文件：一个可以直接贴进工单、随处打开的文件。（LaTeX 会被拒绝，因为
+  `\includegraphics` 需要文件。）
+
+`math: "native"` 是默认值，也更轻：公式留给渲染器排版，只有图形变成图片。当目标环境无法
+排版数学时——Word、纯文本流水线、PDF 转换——或者用户明确要公式图片时，选
+`math: "image"`。HTML + 原生公式会带上 MathJax CDN 引导脚本（用 `mathjax: false` 关掉，
+自己提供）。
+
+没有任何东西会被悄悄丢掉：`{{figure:name}}` 找不到对应规格会直接报错并列出你提供的名字；
+提供了却未被引用的图形会以 warning 形式报告。
+
 ## 输出：路径、命名、布局
 
 ```text
@@ -328,15 +427,19 @@ dsh plugin --profile web remove @jaxzhou/dsh-mathmatic-symbol
 
 `0.1.0` 已验证的内容：
 
-- `npm run check`：类型检查、带产物形状断言的打包构建、**57 个测试**，其中包含逐
-  像素的几何断言和一次覆盖落盘文件的端到端校验。
+本仓库已验证的内容：
+
+- `npm run check`：类型检查、带产物形状断言的打包构建，以及完整测试套件——逐像素的几何
+  断言、按格式组装文档的断言，以及覆盖落盘文件的端到端校验。
 - Harness 自带的 `assertSupportedJsonSchema` 与 `validateJsonSchemaValue` 接受全部
-  三个输出 schema 与真实产物值。
-- 以 `@deepseek-ai/dsh-base` + 本插件组合的 profile 真实启动，live registry 中出现
-  `math_formula`、`math_figure`、`math_convert`——本地检出与**已发布的 npm 包**两条
-  路径都验证过。
-- 未验证：由真实 LLM 驱动的工具调用（构建环境没有配置 API key）。工具层本身由上述
-  测试覆盖。
+  **四个**输出 schema 与真实产物值。
+- 以 `@deepseek-ai/dsh-base` + 本插件组合的 profile 真实启动：live registry 中出现全部
+  四个工具（共 29 个工具），并且真实系统提示词里组装出了 `tool:math-symbol` 指引段落。
+- 未验证：由真实 LLM 驱动的工具调用（构建环境没有配置 API key）。工具层、schema 与提示词
+  段落由上述检查覆盖。
+
+发布状态：**npm 上的 `0.1.0` 早于 `math_document` 与提示词指引**——它注册三个工具。四个
+工具的版本在本仓库 `main` 上，也就是本地 `dsh plugin add <检出目录>` 安装所运行的版本。
 
 ## 隐私与权限
 
@@ -361,6 +464,12 @@ dsh plugin --profile web remove @jaxzhou/dsh-mathmatic-symbol
 - **一次一张图。** 没有子图／多面板语法；把多个元素画在同一画布，或分多次调用。
 - **无 3D、无隐函数。** 只支持平面显式函数、参数曲线与极坐标曲线。
 - **默认输出目录是 `math/`。** 若你的素材放在别的树下，用 `path` 或 `outputDir` 指定。
+- **文档是整体生成的。** `math_document` 每次写出完整文件并覆盖旧文件；没有增量编辑，
+  对已生成文档的手工修改会在重新生成时丢失。它适合产出最终结果，不适合维护一份长期文档。
+- **HTML 的原生公式会引入 CDN 脚本。** MathJax 引导来自 jsDelivr 的 `<script>`；用
+  `mathjax: false` 自己提供，或用 `math: "image"` 得到完全离线的文档。
+- **Markdown 里的行内公式图贴在基线上。** 只有 HTML 与 LaTeX 做了显式基线校正
+  （`vertical-align`、`\raisebox`）；Markdown 渲染器自己决定图片对齐方式。
 
 ## 参与开发
 

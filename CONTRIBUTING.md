@@ -27,13 +27,17 @@ resulting `lib/` files in the same commit.
 | `scripts/render-example.mjs` | Renders one example spec to SVG + PNG without booting a profile |
 | `src/latex.ts` | MathJax v3 TeX → font-free SVG fragments, standalone SVG, and inline fragments |
 | `src/figure.ts` | Figure-spec validation, resolution, and SVG drawing |
+| `src/formula.ts` | Shared formula rendering (delimiters + standalone SVG + baseline depth) |
+| `src/document.ts` | Document scanning (`$…$`, `$$…$$`, `{{figure:name}}`) and per-format assembly |
+| `src/prompt.ts` | The `tool:math-symbol` system-prompt section and its guidance text |
 | `src/expr.ts` | Safe arithmetic expression compiler for coordinates and curves |
 | `src/raster.ts` | Lazy `@resvg/resvg-js` SVG → PNG |
 | `src/sanitize.ts` | SVG sanitizer for the conversion boundary |
 | `src/embed.ts` | Markdown/HTML/LaTeX/data-URI snippets |
 | `src/output.ts` | Workspace-confined paths, content-addressed names, atomic writes |
 | `src/value.ts` | The canonical value type, its supported-subset JSON Schema, and the text projection |
-| `src/tools/` | The three tool definitions and their shared publish pipeline |
+| `src/tools/` | The four tool definitions and their shared publish pipeline |
+| `src/tools/document.ts` | Renders a document's formulas/figures, writes them, and inserts them |
 | `tests/` | `node:test` suites, including a real end-to-end pass over the emitted files |
 
 ## Dependencies
@@ -66,6 +70,15 @@ MathJax lazily, starts importing the rasterizer eagerly, or starts importing a
    just that rendering succeeded.
 5. Document it in the `math_figure` description (`src/tools/figure.ts`) and in
    both READMEs.
+
+## Adding a tool
+
+Register it through `createTool` in `src/tools/shared.ts`. A tool whose result is
+not the shared math-image value passes its own `output: { schema, render }`; the
+schema must stay inside the Harness's supported subset (`tests/helpers/schema.mjs`
+mirrors that enforcement, and `assertSupportedJsonSchema` is the real check). Add
+the name to `TOOL_NAMES` in `src/prompt.ts` so the steering section can mention
+it, and cover both the value and the guidance in `tests/document.test.mjs`.
 
 ## Verifying a change against a real Harness
 
