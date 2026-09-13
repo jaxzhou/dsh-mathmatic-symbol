@@ -478,10 +478,10 @@ What is verified in this repository:
   environment). The tool layer, the schemas, and the prompt section are covered by
   the checks above.
 
-Published state: **`0.1.0` on npm was built before `math_document` and the prompt
-section existed** — it registers three tools. The four-tool build is this
-repository's `main`, which is what a local `dsh plugin add <checkout>` install
-runs.
+Published state: **`0.1.1`** is the current release and ships all four tools plus the
+prompt guidance. **`0.1.0`** predates `math_document` and that guidance and registers
+only three tools, so install `@jaxzhou/dsh-mathmatic-symbol@^0.1.1` (an unpinned
+install already resolves to it).
 
 ## Privacy and authority
 
@@ -525,6 +525,13 @@ runs.
 - **Inline math images in Markdown sit on the baseline.** Only HTML and LaTeX get
   explicit baseline correction (`vertical-align`, `\raisebox`); Markdown renderers
   decide image alignment themselves.
+
+## Release history
+
+| Version | Released | Highlights |
+| --- | --- | --- |
+| `0.1.1` | 2026-09-13 | `math_document` — documents with formulas and figures already rendered and inserted; the `tool:math-symbol` prompt guidance that keeps the agent calling these tools instead of hand-writing renderers; embed snippets now place the PNG at its 1× display size; four renderable specs in `examples/` and a full reference in both READMEs. |
+| `0.1.0` | 2026-09-12 | First release: `math_formula`, `math_figure`, `math_convert`, font-free SVG output, and the shared embed snippets. |
 
 ## Development
 

@@ -438,8 +438,9 @@ dsh plugin --profile web remove @jaxzhou/dsh-mathmatic-symbol
 - 未验证：由真实 LLM 驱动的工具调用（构建环境没有配置 API key）。工具层、schema 与提示词
   段落由上述检查覆盖。
 
-发布状态：**npm 上的 `0.1.0` 早于 `math_document` 与提示词指引**——它注册三个工具。四个
-工具的版本在本仓库 `main` 上，也就是本地 `dsh plugin add <检出目录>` 安装所运行的版本。
+发布状态：**`0.1.1`** 是当前版本，包含全部四个工具与提示词指引。**`0.1.0`** 早于
+`math_document` 与那段指引，只注册三个工具，因此请安装
+`@jaxzhou/dsh-mathmatic-symbol@^0.1.1`（不带版本号的安装已经会解析到它）。
 
 ## 隐私与权限
 
@@ -470,6 +471,13 @@ dsh plugin --profile web remove @jaxzhou/dsh-mathmatic-symbol
   `mathjax: false` 自己提供，或用 `math: "image"` 得到完全离线的文档。
 - **Markdown 里的行内公式图贴在基线上。** 只有 HTML 与 LaTeX 做了显式基线校正
   （`vertical-align`、`\raisebox`）；Markdown 渲染器自己决定图片对齐方式。
+
+## 版本历史
+
+| 版本 | 发布日 | 主要内容 |
+| --- | --- | --- |
+| `0.1.1` | 2026-09-13 | `math_document`——把公式与图形渲染并插好地生成文档；`tool:math-symbol` 提示词指引，让 agent 调用这些工具而不是自己写渲染代码；嵌入片段改为按 1× 显示尺寸给出 PNG；`examples/` 四份可渲染规格与两份 README 的完整参考。 |
+| `0.1.0` | 2026-09-12 | 首个版本：`math_formula`、`math_figure`、`math_convert`，不依赖字体的 SVG 输出与共享的嵌入片段。 |
 
 ## 参与开发
 
