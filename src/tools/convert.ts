@@ -17,7 +17,7 @@ import { readWorkspaceBytes, readWorkspaceText } from '../output.ts'
 import { readPngSize } from '../raster.ts'
 import { sanitizeSvg } from '../sanitize.ts'
 import { isSafeColor } from '../svg.ts'
-import { renderFormulaSvg, stripMathDelimiters } from './formula.ts'
+import { renderFormulaSvg, stripMathDelimiters } from '../formula.ts'
 import {
   assertKnownKeys,
   COMMON_PARAMETERS,

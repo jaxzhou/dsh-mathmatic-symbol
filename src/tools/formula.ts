@@ -6,7 +6,7 @@
 
 import type { ResolvedMathConfig } from '../config.ts'
 import type { PluginContext, ToolDefinition, ToolRunContext } from '../dsh.ts'
-import { renderTex, standaloneTexSvg } from '../latex.ts'
+import { renderFormulaSvg, stripMathDelimiters } from '../formula.ts'
 import { isSafeColor } from '../svg.ts'
 import {
   assertKnownKeys,
@@ -21,59 +21,6 @@ const TOOL = 'math_formula'
 
 const OWN_KEYS = ['latex', 'display', 'font_size', 'color'] as const
 const ALL_KEYS: readonly string[] = [...OWN_KEYS, ...Object.keys(COMMON_PARAMETERS)]
-
-/**
- * Remove one layer of common math delimiters or a wrapping display environment
- * so a model that answers with `$$…$$` or `\begin{equation}…\end{equation}`
- * still renders.
- * @param input - the raw formula text.
- * @returns the bare TeX math source.
- */
-export function stripMathDelimiters(input: string): string {
-  let source = input.trim()
-  const wrapped: readonly (readonly [string, string])[] = [
-    ['$$', '$$'],
-    ['\\[', '\\]'],
-    ['\\(', '\\)'],
-    ['$', '$'],
-  ]
-  for (const [open, close] of wrapped) {
-    if (source.startsWith(open) && source.endsWith(close) && source.length > open.length + close.length) {
-      source = source.slice(open.length, source.length - close.length).trim()
-      break
-    }
-  }
-  const environment = /^\\begin\{([a-zA-Z*]+)\}([\s\S]*)\\end\{\1\}$/.exec(source)
-  const displayEnvironments = ['equation', 'equation*', 'align', 'align*', 'gather', 'gather*', 'displaymath', 'math']
-  if (environment !== null && displayEnvironments.includes(environment[1] as string)) {
-    source = (environment[2] as string).trim()
-  }
-  return source
-}
-
-/**
- * Render one formula into a standalone SVG with its warnings.
- * @param latex - bare TeX math source (delimiters already stripped).
- * @param options - style and canvas options.
- * @returns the SVG text, its intrinsic size, and non-fatal warnings.
- */
-export async function renderFormulaSvg(
-  latex: string,
-  options: { display: boolean; fontSize: number; color: string; padding: number; background: string },
-): Promise<{ svg: string; width: number; height: number; warnings: string[] }> {
-  const rendered = await renderTex(latex, options.display)
-  const warnings: string[] = []
-  if (rendered.errored) {
-    warnings.push('MathJax reported a typesetting error; the image contains an error marker — check the LaTeX source')
-  }
-  const { svg, width, height } = standaloneTexSvg(rendered, {
-    color: options.color,
-    fontSize: options.fontSize,
-    padding: options.padding,
-    background: options.background,
-  })
-  return { svg, width, height, warnings }
-}
 
 /**
  * Build the `math_formula` tool.

@@ -107,6 +107,127 @@ function kibibytes(bytes: number): string {
   return `${(bytes / 1024).toFixed(1)} KiB`
 }
 
+/** One image inserted into a generated document. */
+export interface MathDocumentImage {
+  /** The token that was replaced: `$…$`, `$$…$$`, or `{{figure:name}}`. */
+  token: string
+  /** What produced it. */
+  kind: 'formula' | 'figure'
+  /** Alternative text written into the document. */
+  alt: string
+  /** The variant the document references. */
+  variant: 'svg' | 'png'
+  /** Workspace-relative SVG path, or null (self-contained documents write no assets). */
+  svg_path: string | null
+  /** Absolute host SVG path, or null. */
+  svg_host_path: string | null
+  /** Workspace-relative PNG path, or null. */
+  png_path: string | null
+  /** Absolute host PNG path, or null. */
+  png_host_path: string | null
+  /** Display width in CSS px at 1×. */
+  width: number
+  /** Display height in CSS px at 1×. */
+  height: number
+  /** Raster pixel width (0 when no raster was produced). */
+  pixel_width: number
+  /** Raster pixel height (0 when no raster was produced). */
+  pixel_height: number
+}
+
+/** The canonical result of `math_document`. */
+export interface MathDocumentValue {
+  kind: 'document'
+  /** Document syntax that was written. */
+  format: 'markdown' | 'html' | 'latex'
+  /** Whether formulas stayed as markup or became images. */
+  math: 'native' | 'image'
+  /** Whether images were inlined as data URIs instead of referenced. */
+  self_contained: boolean
+  /** Workspace-relative document path. */
+  doc_path: string
+  /** Absolute host document path. */
+  doc_host_path: string
+  /** Document byte length. */
+  doc_bytes: number
+  /** Workspace-relative asset directory, or null when nothing was written beside the document. */
+  assets_dir: string | null
+  /** Every image inserted, in document order. */
+  images: MathDocumentImage[]
+  /** Non-fatal problems: unused figures, degraded variants, skipped samples. */
+  warnings: string[]
+}
+
+/** The `math_document` output schema, in the Harness's supported subset. */
+export const MATH_DOCUMENT_VALUE_SCHEMA: Record<string, unknown> = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'kind', 'format', 'math', 'self_contained',
+    'doc_path', 'doc_host_path', 'doc_bytes', 'assets_dir', 'images', 'warnings',
+  ],
+  properties: {
+    kind: { type: 'string', enum: ['document'] },
+    format: { type: 'string', enum: ['markdown', 'html', 'latex'] },
+    math: { type: 'string', enum: ['native', 'image'] },
+    self_contained: { type: 'boolean' },
+    doc_path: { type: 'string' },
+    doc_host_path: { type: 'string' },
+    doc_bytes: { type: 'integer' },
+    assets_dir: nullableString,
+    images: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: [
+          'token', 'kind', 'alt', 'variant',
+          'svg_path', 'svg_host_path', 'png_path', 'png_host_path',
+          'width', 'height', 'pixel_width', 'pixel_height',
+        ],
+        properties: {
+          token: { type: 'string' },
+          kind: { type: 'string', enum: ['formula', 'figure'] },
+          alt: { type: 'string' },
+          variant: { type: 'string', enum: ['svg', 'png'] },
+          svg_path: nullableString,
+          svg_host_path: nullableString,
+          png_path: nullableString,
+          png_host_path: nullableString,
+          width: { type: 'number' },
+          height: { type: 'number' },
+          pixel_width: { type: 'number' },
+          pixel_height: { type: 'number' },
+        },
+      },
+    },
+    warnings: { type: 'array', items: { type: 'string' } },
+  },
+}
+
+/**
+ * Project one document value into the compact text the model reads.
+ * @param value - the tool's canonical result.
+ * @returns one text block body: the document, its assets, and every insertion.
+ */
+export function formatMathDocumentValue(value: MathDocumentValue): string {
+  const lines: string[] = [
+    `<document format="${value.format}" path="${value.doc_path}" bytes="${value.doc_bytes}"`
+    + ` math="${value.math}" self_contained="${value.self_contained}">`,
+  ]
+  if (value.assets_dir !== null) lines.push(`assets: ${value.assets_dir} (${value.images.length} image${value.images.length === 1 ? '' : 's'})`)
+  else lines.push(`assets: none — images are inlined in the document (${value.images.length})`)
+  const shown = value.images.slice(0, 30)
+  for (const image of shown) {
+    const target = image.variant === 'png' ? image.png_path : image.svg_path
+    lines.push(`  ${image.token} → ${target ?? '(inlined)'} (${image.width}x${image.height})`)
+  }
+  if (value.images.length > shown.length) lines.push(`  … and ${value.images.length - shown.length} more`)
+  for (const warning of value.warnings) lines.push(`warning: ${warning}`)
+  lines.push('</document>')
+  return lines.join('\n')
+}
+
 /**
  * Project one canonical value into the compact text the model reads.
  * @param value - the tool's canonical result.

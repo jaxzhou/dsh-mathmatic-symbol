@@ -416,29 +416,40 @@ export function finalizePreview(exec: ToolRunContext, result: ToolResultLike): C
   return [...result.content, { type: 'image', attachment: ref }]
 }
 
+/** The canonical output contract a tool may override. */
+export interface ToolOutputSpec<Value> {
+  /** Raw JSON Schema in the Harness's enforced subset. */
+  schema: Record<string, unknown>
+  /** Model-facing text projection of one canonical value. */
+  render(value: Value): string
+}
+
 /** The shape each tool file provides to {@link createTool}. */
-export interface ToolSpec {
+export interface ToolSpec<Value = MathImageValue> {
   name: string
   description: string
   parameters: Record<string, unknown>
-  execute(args: Record<string, unknown>, exec: ToolRunContext): Promise<MathImageValue>
+  execute(args: Record<string, unknown>, exec: ToolRunContext): Promise<Value>
+  /** Defaults to the shared math-image value contract. */
+  output?: ToolOutputSpec<Value>
 }
 
 /**
- * Wrap one tool implementation into a registry-ready definition whose output
- * contract is the shared canonical value.
- * @param spec - the tool's name, schema, and body.
+ * Wrap one tool implementation into a registry-ready definition.
+ * @param spec - the tool's name, schema, body, and optional output contract.
  * @returns the definition passed to `ctx.tools.register`.
  */
-export function createTool(spec: ToolSpec): ToolDefinition {
+export function createTool<Value = MathImageValue>(spec: ToolSpec<Value>): ToolDefinition {
+  const schema = spec.output?.schema ?? MATH_IMAGE_VALUE_SCHEMA
+  const render = spec.output?.render ?? ((value: Value) => formatMathImageValue(value as unknown as MathImageValue))
   return {
     name: spec.name,
     description: spec.description,
     parameters: spec.parameters,
     output: {
-      schema: MATH_IMAGE_VALUE_SCHEMA,
+      schema,
       render(_args: unknown, value: unknown): ContentBlock[] {
-        return [{ type: 'text', text: formatMathImageValue(value as MathImageValue) }]
+        return [{ type: 'text', text: render(value as Value) }]
       },
     },
     execute: (args: unknown, exec: ToolRunContext) => spec.execute(readObject(args, spec.name), exec),

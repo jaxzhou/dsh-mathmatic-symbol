@@ -97,12 +97,39 @@ export interface PluginLogger {
   error?(message: string): void
 }
 
+/** One ordered system-prompt section registration. */
+export interface PromptSectionSpec {
+  /** Unique section name; a duplicate registration throws. */
+  name: string
+  /** Ascending concatenation order. */
+  order: number
+  /** Static text, or a provider evaluated at each assembly. */
+  text: string | ((context: { scope?: unknown }) => string)
+}
+
+/** The system-prompt seam (`ctx.systemPrompt`), used only for tool guidance. */
+export interface SystemPromptService {
+  section(section: PromptSectionSpec): () => void
+  getSectionOrder(name: string): number
+}
+
 /** The Cordis services and helpers this plugin uses. */
 export interface PluginContext {
-  tools: { register(definition: ToolDefinition): () => void }
+  tools: {
+    register(definition: ToolDefinition): () => void
+    /** Scoped lookup, used to keep prompt guidance in step with visibility. */
+    get?(name: string, scope?: unknown): ToolDefinition | undefined
+  }
   /** Optional-service lookup; unregistered names return `undefined`. */
   get(name: string): unknown
   /** Lifecycle-scoped registration; the callback may return a disposer. */
   effect(callback: () => void | (() => void)): () => void
+  /**
+   * Run a callback once the named services are available, in a child scope.
+   * Used so the plugin still loads where the prompt service is absent.
+   */
+  inject?(deps: readonly string[], callback: (ctx: PluginContext) => void): unknown
+  /** Present when the deployment mounts a system prompt. */
+  systemPrompt?: SystemPromptService
   logger?: PluginLogger
 }

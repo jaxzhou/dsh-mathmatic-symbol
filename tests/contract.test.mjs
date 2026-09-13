@@ -49,9 +49,9 @@ test('the artifact exports the Host module shape the loader needs', () => {
   assert.equal(typeof apply, 'function')
 })
 
-test('apply registers exactly the three math tools with supported schemas', () => {
+test('apply registers exactly the four math tools with supported schemas', () => {
   const { tools } = mount({})
-  assert.deepEqual([...tools.keys()].sort(), ['math_convert', 'math_figure', 'math_formula'])
+  assert.deepEqual([...tools.keys()].sort(), ['math_convert', 'math_document', 'math_figure', 'math_formula'])
   for (const tool of tools.values()) {
     assert.equal(typeof tool.description, 'string')
     assert.ok(tool.description.length > 40)
@@ -72,7 +72,7 @@ test('apply registers exactly the three math tools with supported schemas', () =
 
 test('unloading the plugin removes every registration', () => {
   const { ctx, tools, disposers, effects } = mount({})
-  assert.equal(tools.size, 3)
+  assert.equal(tools.size, 4)
   for (const dispose of disposers) dispose()
   for (const effect of effects) effect()
   assert.equal(tools.size, 0)
