@@ -136,7 +136,7 @@ for you — no paths to invent, no markup to splice:
 ```
 math_document({
   path: "docs/report.md",
-  body: "# Area of a disc\n\nThe area is $A=\\pi r^2$ for radius $r$.\n\n$$A = \\int_0^1 2\\pi r\\,dr$$\n\n{{figure:triangle}}\n",
+  body: "# Area of a disc\n\nThe area is $A=\\pi r^2$ for radius $r$.\n\n$$A = \\int_0^1 2\\pi r\\,dr$$\n\n[[figure:triangle]]\n",
   math: "image",
   figures: { triangle: { /* a math_figure spec */ } }
 })
@@ -151,7 +151,7 @@ assets: docs/report-assets (4 images)
   $A=\pi r^2$ → docs/report-assets/formula-83490f278b73.svg (73x32)
   $r$ → docs/report-assets/formula-86965ab96917.svg (32x32)
   $$A = \int_0^1 2\pi r\,dr$$ → docs/report-assets/formula-65e3b2edd39f.svg (118x56)
-  {{figure:triangle}} → docs/report-assets/triangle-7f4ecb6f5507.svg (300x240)
+  [[figure:triangle]] → docs/report-assets/triangle-7f4ecb6f5507.svg (300x240)
 </document>
 ```
 
@@ -254,7 +254,7 @@ existing file and returns embed snippets for it.
 | Parameter | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `path` | string, **required** | — | Workspace-relative document path. The format extension is appended when missing and must match `format` when present. |
-| `body` | string, **required** | — | Body in the chosen syntax, with `$…$`, `$$…$$`, `\$` and `{{figure:name}}` tokens. |
+| `body` | string, **required** | — | Body in the chosen syntax, with `$…$`, `$$…$$`, `\$` and `[[figure:name]]` tokens. |
 | `format` | `markdown` \| `html` \| `latex` | `markdown` | Syntax and output extension. |
 | `title` | string | — | HTML `<title>`; a prepended `# ` heading for Markdown (when the body has none); a `\section*` for LaTeX. |
 | `math` | `native` \| `image` | `native` | `native` leaves formulas as markup; `image` replaces every formula with a rendered image. |
@@ -375,9 +375,12 @@ the target cannot typeset math — Word, a plain-text pipeline, PDF conversion �
 when the user asks for formula images. For HTML with native math the wrapper
 includes a MathJax CDN bootstrap (disable with `mathjax: false` to supply your own).
 
-Nothing is dropped silently: a `{{figure:name}}` without a matching spec is a hard
+Nothing is dropped silently: a `[[figure:name]]` without a matching spec is a hard
 error listing the names you provided, and a provided-but-unreferenced figure is
-reported as a warning.
+reported as a warning. Two details about the placeholder: the double-brace spelling
+shipped in 0.1.1 is still accepted as an input alias (though it never appears in
+prompt text, where the Harness reserves `{{name}}` for variable interpolation), and
+the name may contain letters, digits, `_` and `-` — anything else stays literal.
 
 ## Output: paths, naming, layout
 
@@ -478,7 +481,7 @@ What is verified in this repository:
   environment). The tool layer, the schemas, and the prompt section are covered by
   the checks above.
 
-Published state: **`0.1.1`** is the current release and ships all four tools plus the
+Published state: **`0.1.2`** is the current release and ships all four tools plus the
 prompt guidance. **`0.1.0`** predates `math_document` and that guidance and registers
 only three tools, so install `@jaxzhou/dsh-mathmatic-symbol@^0.1.1` (an unpinned
 install already resolves to it).
@@ -530,6 +533,7 @@ install already resolves to it).
 
 | Version | Released | Highlights |
 | --- | --- | --- |
+| `0.1.2` | 2026-09-13 | Hotfix: the document tool's figure placeholder is now `[[figure:name]]`. The double-braced spelling shipped in 0.1.1 collided with system-prompt variable interpolation (`{{name}}` with a name outside `[a-z][a-z0-9_]*` throws), which broke every prompt assembly in a profile running the plugin; the old spelling is still accepted as an input alias, and the suite now checks all prompt-facing text against the Harness's own rules. |
 | `0.1.1` | 2026-09-13 | `math_document` — documents with formulas and figures already rendered and inserted; the `tool:math-symbol` prompt guidance that keeps the agent calling these tools instead of hand-writing renderers; embed snippets now place the PNG at its 1× display size; four renderable specs in `examples/` and a full reference in both READMEs. |
 | `0.1.0` | 2026-09-12 | First release: `math_formula`, `math_figure`, `math_convert`, font-free SVG output, and the shared embed snippets. |
 

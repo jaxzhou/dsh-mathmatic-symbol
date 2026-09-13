@@ -109,7 +109,7 @@ function kibibytes(bytes: number): string {
 
 /** One image inserted into a generated document. */
 export interface MathDocumentImage {
-  /** The token that was replaced: `$…$`, `$$…$$`, or `{{figure:name}}`. */
+  /** The token that was replaced: `$…$`, `$$…$$`, or `[[figure:name]]`. */
   token: string
   /** What produced it. */
   kind: 'formula' | 'figure'

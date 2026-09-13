@@ -12,6 +12,11 @@
  * none of the tools are visible in the calling scope, mirroring how built-in
  * tool guidance behaves.
  *
+ * The text must never contain a double-braced group: the Harness interpolates
+ * `{{name}}` in section text and throws on a name outside `[a-z][a-z0-9_]*`, so a
+ * literal placeholder like the document tool's would break every prompt
+ * assembly. Figures are therefore spelled `[[figure:name]]` throughout.
+ *
  * @module @jaxzhou/dsh-mathmatic-symbol/prompt
  */
 
@@ -46,7 +51,7 @@ export function mathToolGuidance(available: readonly string[]): string {
   if (available.includes('math_document')) {
     bullets.push(
       '- `math_document` — assemble a Markdown/HTML/LaTeX document whose formulas and figures are already rendered and '
-      + 'inserted. Write the body with `$inline$`, `$$display$$`, and `{{figure:name}}` tokens; pass `figures` as a '
+      + 'inserted. Write the body with `$inline$`, `$$display$$`, and `[[figure:name]]` tokens; pass `figures` as a '
       + 'name → spec map. This replaces writing image paths or embedding markup by hand.',
     )
   }

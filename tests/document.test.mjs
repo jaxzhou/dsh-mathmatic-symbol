@@ -5,12 +5,13 @@ import path from 'node:path'
 import { test } from 'node:test'
 import { apply, assembleDocument, mathToolGuidance, scanDocument } from '../lib/index.js'
 import { createHost, createSystemPrompt } from './helpers/host.mjs'
+import { assertPromptSafe, assertToolsPromptSafe } from './helpers/prompt.mjs'
 import { assertSupportedSchema, assertValueMatches } from './helpers/schema.mjs'
 
 // ---------------------------------------------------------------- scanning
 
 test('scanDocument splits text, math, and figure tokens', () => {
-  const segments = scanDocument('Area $A=\\pi r^2$ of\n\n$$\\int_0^1 x\\,dx$$\n\n{{figure:triangle}} done')
+  const segments = scanDocument('Area $A=\\pi r^2$ of\n\n$$\\int_0^1 x\\,dx$$\n\n[[figure:triangle]] done')
   assert.deepEqual(segments.map(segment => segment.kind), ['text', 'math', 'text', 'math', 'text', 'figure', 'text'])
   assert.deepEqual(segments[1], { kind: 'math', index: 0, tex: 'A=\\pi r^2', display: false })
   assert.deepEqual(segments[3], { kind: 'math', index: 1, tex: '\\int_0^1 x\\,dx', display: true })
@@ -18,18 +19,25 @@ test('scanDocument splits text, math, and figure tokens', () => {
 })
 
 test('scanDocument leaves prose dollars, unterminated math, and bad tokens alone', () => {
-  const segments = scanDocument('Costs $5 and $10 (see $x and {{figure:bad name}}).')
+  const segments = scanDocument('Costs $5 and $10 (see $x and [[figure:bad name]]).')
   assert.equal(segments.length, 1)
   assert.equal(segments[0].kind, 'text')
   assert.ok(segments[0].text.includes('$5 and $10'))
   assert.ok(segments[0].text.includes('$x'))
-  assert.ok(segments[0].text.includes('{{figure:bad name}}'))
+  assert.ok(segments[0].text.includes('[[figure:bad name]]'))
 })
 
 test('scanDocument preserves an escaped dollar verbatim', () => {
   const segments = scanDocument('price \\$9 and $x$')
   assert.equal(segments[0].text, 'price \\$9 and ')
   assert.deepEqual(segments[1], { kind: 'math', index: 0, tex: 'x', display: false })
+})
+
+test('the legacy double-brace placeholder still resolves, for 0.1.1 bodies', () => {
+  const segments = scanDocument('see {{figure:triangle}} and [[figure:square]]')
+  assert.deepEqual(segments.map(segment => segment.kind), ['text', 'figure', 'text', 'figure'])
+  assert.deepEqual(segments[1], { kind: 'figure', index: 0, name: 'triangle' })
+  assert.deepEqual(segments[3], { kind: 'figure', index: 1, name: 'square' })
 })
 
 test('inline math never spans a line break', () => {
@@ -40,7 +48,7 @@ test('inline math never spans a line break', () => {
 
 // --------------------------------------------------------------- assembly
 
-const mathSegments = scanDocument('Before $$x^2$$ and $y$ after. {{figure:plot}}')
+const mathSegments = scanDocument('Before $$x^2$$ and $y$ after. [[figure:plot]]')
 const placements = new Map([
   [0, { reference: 'assets/f.svg', width: 100, height: 40, depthPx: 0, alt: 'x^2', variant: 'svg' }],
   [1, { reference: 'assets/g.svg', width: 20, height: 16, depthPx: 4, alt: 'y', variant: 'svg' }],
@@ -81,7 +89,7 @@ test('native math stays markup, and HTML gains a MathJax bootstrap', () => {
   // A document without math needs no bootstrap even in native mode.
   const plain = assembleDocument({
     format: 'html',
-    segments: scanDocument('just {{figure:plot}}'),
+    segments: scanDocument('just [[figure:plot]]'),
     math: 'native',
     placements: new Map([[0, placements.get(2)]]),
   }).text
@@ -145,7 +153,7 @@ test('math_document writes Markdown with images referenced relative to the docum
   const tool = tools.get('math_document')
   const value = await tool.execute({
     path: 'docs/report.md',
-    body: '# Area\n\nThe area is $A=\\pi r^2$.\n\n$$A = \\int_0^1 2\\pi r\\,dr$$\n\n{{figure:triangle}}\n',
+    body: '# Area\n\nThe area is $A=\\pi r^2$.\n\n$$A = \\int_0^1 2\\pi r\\,dr$$\n\n[[figure:triangle]]\n',
     math: 'image',
     figures: { triangle: TRIANGLE },
   }, exec)
@@ -180,7 +188,7 @@ test('math_document writes LaTeX with PNG images and a baseline-raised inline fo
   const { tools, exec, workspace } = await freshMount({})
   const value = await tools.get('math_document').execute({
     path: 'paper.tex',
-    body: 'The identity $e^{i\\pi}+1=0$ holds.\n\n{{figure:triangle}}',
+    body: 'The identity $e^{i\\pi}+1=0$ holds.\n\n[[figure:triangle]]',
     format: 'latex',
     math: 'image',
     figures: { triangle: TRIANGLE },
@@ -207,7 +215,7 @@ test('self_contained inlines data URIs and writes no asset files', async () => {
   const { tools, exec, workspace } = await freshMount({})
   const value = await tools.get('math_document').execute({
     path: 'docs/standalone.html',
-    body: '<h1>Proof</h1><p>Since $a^2+b^2=c^2$ …</p>{{figure:triangle}}',
+    body: '<h1>Proof</h1><p>Since $a^2+b^2=c^2$ …</p>[[figure:triangle]]',
     format: 'html',
     math: 'image',
     self_contained: true,
@@ -235,7 +243,7 @@ test('native math renders no images and keeps the formulas as markup', async () 
   const { tools, exec, workspace } = await freshMount({})
   const value = await tools.get('math_document').execute({
     path: 'notes.md',
-    body: 'Euler: $e^{i\\pi}+1=0$\n\n{{figure:triangle}}',
+    body: 'Euler: $e^{i\\pi}+1=0$\n\n[[figure:triangle]]',
     figures: { triangle: TRIANGLE },
   }, exec)
   assert.equal(value.math, 'native')
@@ -255,8 +263,8 @@ test('unused figures warn, unknown placeholders fail', async () => {
   assert.ok(unused.warnings.some(warning => /"triangle" was provided but never referenced/.test(warning)))
 
   await assert.rejects(
-    tools.get('math_document').execute({ path: 'bad.md', body: '{{figure:missing}}', figures: { triangle: TRIANGLE } }, exec),
-    /\{\{figure:missing\}\} has no spec in "figures"; provided: triangle/,
+    tools.get('math_document').execute({ path: 'bad.md', body: '[[figure:missing]]', figures: { triangle: TRIANGLE } }, exec),
+    /\[\[figure:missing\]\] has no spec in "figures"; provided: triangle/,
   )
 })
 
@@ -287,6 +295,17 @@ test('mathToolGuidance states the trigger, the tools, and the no-hand-rolling ru
   const partial = mathToolGuidance(['math_formula'])
   assert.ok(partial.includes('math_formula'))
   assert.ok(!partial.includes('math_figure'))
+})
+
+test('no prompt-facing text contains a double-braced group', () => {
+  const systemPrompt = createSystemPrompt({ TOOL_REPORT: 2900 })
+  const host = createHost({ systemPrompt })
+  apply(host.ctx, {})
+  const guidance = systemPrompt.sections[0].text({ scope: undefined })
+  assertPromptSafe(guidance, 'guidance')
+  assertToolsPromptSafe(host.tools)
+  // The document tool's own placeholder must be advertised in the safe spelling.
+  assert.ok(guidance.includes('[[figure:name]]'), 'guidance must name the bracket placeholder')
 })
 
 test('apply registers four tools and the guidance section', () => {

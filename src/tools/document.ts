@@ -4,7 +4,7 @@
  *
  * This is the tool that removes the last hand-written step: instead of asking
  * the model to render images, invent paths, and splice them into a document, the
- * body is written with `$…$` / `$$…$$` / `{{figure:name}}` tokens and the tool
+ * body is written with `$…$` / `$$…$$` / `[[figure:name]]` tokens and the tool
  * renders, names, writes, and references every image — correctly relative to
  * the document, in the syntax of the chosen format, optionally inlined as data
  * URIs so the file stands alone.
@@ -122,7 +122,7 @@ export function createDocumentTool(ctx: PluginContext, config: ResolvedMathConfi
     output: { schema: MATH_DOCUMENT_VALUE_SCHEMA, render: formatMathDocumentValue },
     description:
       'Assemble a document (Markdown, HTML, or LaTeX) with mathematical formulas and figures already rendered and '
-      + 'inserted. Write the body with $inline$ / $$display$$ math and {{figure:name}} placeholders; pass the figures as a '
+      + 'inserted. Write the body with $inline$ / $$display$$ math and [[figure:name]] placeholders; pass the figures as a '
       + 'name → math_figure spec map. The tool renders every formula and figure, names and writes the images beside the '
       + 'document, and inserts them in the syntax of the chosen format — relative paths by default, or base64 data URIs '
       + 'with self_contained for a single self-sufficient file. LaTeX output needs PNG images (image_format "png" or '
@@ -139,7 +139,7 @@ export function createDocumentTool(ctx: PluginContext, config: ResolvedMathConfi
         },
         body: {
           type: 'string',
-          description: 'The document body. Markdown, HTML, or LaTeX matching "format". Use $…$ for inline math, $$…$$ for display math, \\$ for a literal dollar, and {{figure:name}} for a figure from "figures".',
+          description: 'The document body. Markdown, HTML, or LaTeX matching "format". Use $…$ for inline math, $$…$$ for display math, \\$ for a literal dollar, and [[figure:name]] for a figure from "figures".',
         },
         format: {
           type: 'string',
@@ -166,7 +166,7 @@ export function createDocumentTool(ctx: PluginContext, config: ResolvedMathConfi
         figures: {
           type: 'object',
           additionalProperties: true,
-          description: 'Map of placeholder name → math_figure spec, e.g. {"triangle": {"width":420, …, "elements":[…]}}. Only figures referenced by {{figure:name}} are rendered.',
+          description: 'Map of placeholder name → math_figure spec, e.g. {"triangle": {"width":420, …, "elements":[…]}}. Only figures referenced by [[figure:name]] are rendered.',
         },
         assets_dir: {
           type: 'string',
@@ -266,13 +266,13 @@ export function createDocumentTool(ctx: PluginContext, config: ResolvedMathConfi
         if (!Object.hasOwn(figures, name)) {
           const available = Object.keys(figures)
           throw new Error(
-            `${TOOL}: {{figure:${name}}} has no spec in "figures"`
+            `${TOOL}: [[figure:${name}]] has no spec in "figures"`
             + (available.length > 0 ? `; provided: ${available.join(', ')}` : '; "figures" is empty'),
           )
         }
       }
       for (const name of Object.keys(figures)) {
-        if (!referenced.includes(name)) warnings.push(`figure "${name}" was provided but never referenced by {{figure:${name}}}`)
+        if (!referenced.includes(name)) warnings.push(`figure "${name}" was provided but never referenced by [[figure:${name}]]`)
       }
 
       // --- render every distinct asset once
@@ -460,7 +460,7 @@ export function createDocumentTool(ctx: PluginContext, config: ResolvedMathConfi
         })
         if (asset.warnings.length > 0) warnings.push(...asset.warnings)
         images.push({
-          token: segment.kind === 'math' ? (segment.display ? `$$${segment.tex}$$` : `$${segment.tex}$`) : `{{figure:${segment.name}}}`,
+          token: segment.kind === 'math' ? (segment.display ? `$$${segment.tex}$$` : `$${segment.tex}$`) : `[[figure:${segment.name}]]`,
           kind: segment.kind === 'math' ? 'formula' : 'figure',
           alt: asset.alt,
           variant,

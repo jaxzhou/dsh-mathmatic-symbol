@@ -7,7 +7,10 @@
  *   - `$…$` and `$$…$$` — inline and display math (with `\$` as a literal
  *     dollar, and the usual "no leading/trailing space" rule for `$…$` so prose
  *     about money is not silently typeset)
- *   - `{{figure:name}}` — the named entry from the call's `figures` object
+ *   - `[[figure:name]]` — the named entry from the call's `figures` object. The
+ *     earlier double-brace spelling is still accepted on input, but no
+ *     prompt-facing text may contain it: the Harness interpolates `{{name}}` in
+ *     system-prompt sections and rejects names outside `[a-z][a-z0-9_]*`.
  *
  * The scanner is pure and format-agnostic; insertion is a separate step, because
  * only then are the file paths (or data URIs) known.
@@ -72,6 +75,32 @@ export function preferredVariant(format: DocumentFormat, produced: readonly ('sv
 }
 
 /**
+ * Figure-placeholder forms the scanner accepts, in priority order. The
+ * double-brace form is a legacy alias kept so a body written against 0.1.1 still
+ * resolves; only the bracket form is advertised, because `{{…}}` is reserved for
+ * system-prompt variable interpolation.
+ */
+const FIGURE_TOKEN_FORMS: readonly { open: string; close: string }[] = [
+  { open: '[[figure:', close: ']]' },
+  { open: '{{figure:', close: '}}' },
+]
+
+/** Read one figure placeholder at `cursor`, or `undefined` when none starts there. */
+function readFigureToken(body: string, cursor: number): { name: string; next: number } | undefined {
+  const character = body[cursor]
+  if (character !== '[' && character !== '{') return undefined
+  for (const form of FIGURE_TOKEN_FORMS) {
+    if (!body.startsWith(form.open, cursor)) continue
+    const close = body.indexOf(form.close, cursor + form.open.length)
+    if (close < 0) continue
+    const name = body.slice(cursor + form.open.length, close).trim()
+    if (!/^[A-Za-z0-9_-]+$/.test(name)) continue
+    return { name, next: close + form.close.length }
+  }
+  return undefined
+}
+
+/**
  * Split a document body into text, math, and figure-reference segments.
  *
  * `\$` is preserved verbatim so each output format can interpret the escape in
@@ -102,16 +131,13 @@ export function scanDocument(body: string): DocumentSegment[] {
       continue
     }
 
-    if (character === '{' && body.startsWith('{{figure:', cursor)) {
-      const close = body.indexOf('}}', cursor)
-      const name = close > 0 ? body.slice(cursor + '{{figure:'.length, close).trim() : ''
-      if (/^[A-Za-z0-9_-]+$/.test(name)) {
-        flushText()
-        segments.push({ kind: 'figure', index: counter, name })
-        counter += 1
-        cursor = close + 2
-        continue
-      }
+    const figureToken = readFigureToken(body, cursor)
+    if (figureToken !== undefined) {
+      flushText()
+      segments.push({ kind: 'figure', index: counter, name: figureToken.name })
+      counter += 1
+      cursor = figureToken.next
+      continue
     }
 
     if (character === '$') {

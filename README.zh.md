@@ -126,7 +126,7 @@ math_figure({ figure: { …见 examples/triangle.json… }, name: "triangle" })
 ```
 math_document({
   path: "docs/report.md",
-  body: "# 圆盘面积\n\n半径 $r$ 的面积为 $A=\\pi r^2$。\n\n$$A = \\int_0^1 2\\pi r\\,dr$$\n\n{{figure:triangle}}\n",
+  body: "# 圆盘面积\n\n半径 $r$ 的面积为 $A=\\pi r^2$。\n\n$$A = \\int_0^1 2\\pi r\\,dr$$\n\n[[figure:triangle]]\n",
   math: "image",
   figures: { triangle: { /* 一份 math_figure 规格 */ } }
 })
@@ -141,7 +141,7 @@ assets: docs/report-assets (4 images)
   $A=\pi r^2$ → docs/report-assets/formula-83490f278b73.svg (73x32)
   $r$ → docs/report-assets/formula-86965ab96917.svg (32x32)
   $$A = \int_0^1 2\pi r\,dr$$ → docs/report-assets/formula-65e3b2edd39f.svg (118x56)
-  {{figure:triangle}} → docs/report-assets/triangle-7f4ecb6f5507.svg (300x240)
+  [[figure:triangle]] → docs/report-assets/triangle-7f4ecb6f5507.svg (300x240)
 </document>
 ```
 
@@ -233,7 +233,7 @@ PNG 源是直通（不重新编码）：结果指向已有文件，并给出它�
 | 参数 | 类型 | 默认 | 说明 |
 | --- | --- | --- | --- |
 | `path` | string，**必填** | — | 工作区相对的文档路径。缺少扩展名时会按 `format` 补上；已有扩展名则必须与 `format` 一致。 |
-| `body` | string，**必填** | — | 目标语法的正文，可使用 `$…$`、`$$…$$`、`\$` 与 `{{figure:name}}`。 |
+| `body` | string，**必填** | — | 目标语法的正文，可使用 `$…$`、`$$…$$`、`\$` 与 `[[figure:name]]`。 |
 | `format` | `markdown` \| `html` \| `latex` | `markdown` | 语法与输出扩展名。 |
 | `title` | string | — | HTML 的 `<title>`；Markdown 在正文没有标题时补一个 `# `；LaTeX 生成 `\section*`。 |
 | `math` | `native` \| `image` | `native` | `native` 保留公式标记交给渲染器排版；`image` 把每个公式换成渲染好的图片。 |
@@ -345,8 +345,10 @@ PNG 源是直通（不重新编码）：结果指向已有文件，并给出它�
 `math: "image"`。HTML + 原生公式会带上 MathJax CDN 引导脚本（用 `mathjax: false` 关掉，
 自己提供）。
 
-没有任何东西会被悄悄丢掉：`{{figure:name}}` 找不到对应规格会直接报错并列出你提供的名字；
-提供了却未被引用的图形会以 warning 形式报告。
+没有任何东西会被悄悄丢掉：`[[figure:name]]` 找不到对应规格会直接报错并列出你提供的名字；
+提供了却未被引用的图形会以 warning 形式报告。占位符还有两个细节：早期 0.1.1 使用的双花括号写法
+`{{figure:name}}` 仍然作为输入别名被接受（但不会出现在任何提示词文本里）；名字允许字母、数字、
+下划线与连字符，其它内容会原样保留为正文。
 
 ## 输出：路径、命名、布局
 
@@ -438,7 +440,7 @@ dsh plugin --profile web remove @jaxzhou/dsh-mathmatic-symbol
 - 未验证：由真实 LLM 驱动的工具调用（构建环境没有配置 API key）。工具层、schema 与提示词
   段落由上述检查覆盖。
 
-发布状态：**`0.1.1`** 是当前版本，包含全部四个工具与提示词指引。**`0.1.0`** 早于
+发布状态：**`0.1.2`** 是当前版本，包含全部四个工具与提示词指引。**`0.1.0`** 早于
 `math_document` 与那段指引，只注册三个工具，因此请安装
 `@jaxzhou/dsh-mathmatic-symbol@^0.1.1`（不带版本号的安装已经会解析到它）。
 
@@ -476,6 +478,7 @@ dsh plugin --profile web remove @jaxzhou/dsh-mathmatic-symbol
 
 | 版本 | 发布日 | 主要内容 |
 | --- | --- | --- |
+| `0.1.2` | 2026-09-13 | 热修：文档工具的图形占位符改为 `[[figure:name]]`。0.1.1 里的双花括号写法与系统提示词的变量插值冲突（`{{name}}` 中名字不符合 `[a-z][a-z0-9_]*` 会直接抛错），导致装有该插件的 profile 每次组装提示词都失败；旧写法仍作为输入别名被接受，并且测试套件现在会按 Harness 自身规则检查所有面向提示词的文本。 |
 | `0.1.1` | 2026-09-13 | `math_document`——把公式与图形渲染并插好地生成文档；`tool:math-symbol` 提示词指引，让 agent 调用这些工具而不是自己写渲染代码；嵌入片段改为按 1× 显示尺寸给出 PNG；`examples/` 四份可渲染规格与两份 README 的完整参考。 |
 | `0.1.0` | 2026-09-12 | 首个版本：`math_formula`、`math_figure`、`math_convert`，不依赖字体的 SVG 输出与共享的嵌入片段。 |
 
