@@ -25,12 +25,19 @@ dsh plugin --profile web add @jaxzhou/dsh-mathmatic-symbol
 dsh --profile web
 ```
 
+[![A screen recording of the plugin in a live DSH session](media/demo.gif)](media/demo.mp4)
+
+*A 14-second screen recording of the plugin in a live session — click through for
+the full-quality video (3358×1480 H.264).*
+
+Below, a still the plugin produced — no fonts, no external tools:
+
 ![Sine and cosine on the unit circle: gridded axes, a radius arrow, dashed
 projections, a theta arc, and a LaTeX title](media/demo.png)
 
-*`examples/unit-circle.json` — unit circle, $\sin\theta$/$\cos\theta$
-projections, angle arc and LaTeX title. Nothing in this image depends on an
-installed font.*
+*`math_figure` from `examples/unit-circle.json` — unit circle,
+$\sin\theta$/$\cos\theta$ projections, angle arc and LaTeX title. Nothing in this
+image depends on an installed font.*
 
 ## Contents
 

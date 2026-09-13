@@ -22,11 +22,17 @@ dsh plugin --profile web add @jaxzhou/dsh-mathmatic-symbol
 dsh --profile web
 ```
 
+[![插件在真实会话中的录屏](media/demo.gif)](media/demo.mp4)
+
+*14 秒真实会话录屏 —— 点击可打开完整画质（3358×1480 H.264）。*
+
+下面是插件产出的静态示例 —— 不依赖字体，也不依赖任何外部工具：
+
 ![单位圆上的正弦与余弦：网格坐标轴、半径箭头、虚线投影、θ 角弧，以及 LaTeX
 标题](media/demo.png)
 
-*`examples/unit-circle.json` —— 单位圆、$\sin\theta$/$\cos\theta$ 投影、角度弧与
-LaTeX 标题。图里没有任何一处依赖已安装的字体。*
+*`math_figure` 由 `examples/unit-circle.json` 生成：单位圆、$\sin\theta$/
+$\cos\theta$ 投影、角度弧与 LaTeX 标题。图里没有任何一处依赖已安装的字体。*
 
 ## 目录
 

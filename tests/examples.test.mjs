@@ -84,6 +84,18 @@ test('the render-example command refuses a bad spec and a bad scale', async () =
   )
 })
 
+test('both READMEs embed the session recording, and the media stays sane', async () => {
+  const gif = await stat(path.join(root, 'media', 'demo.gif'))
+  const mp4 = await stat(path.join(root, 'media', 'demo.mp4'))
+  assert.ok(gif.size > 100_000 && gif.size < 12 * 1024 * 1024, `media/demo.gif is ${gif.size} bytes`)
+  assert.ok(mp4.size > 100_000 && mp4.size < 40 * 1024 * 1024, `media/demo.mp4 is ${mp4.size} bytes`)
+  for (const file of ['README.md', 'README.zh.md']) {
+    const text = await readFile(path.join(root, file), 'utf8')
+    assert.ok(text.includes('](media/demo.gif)'), `${file} does not embed the animated demo`)
+    assert.ok(text.includes('(media/demo.mp4)'), `${file} does not link the full-quality video`)
+  }
+})
+
 test('both READMEs point at the examples, the demo, and the published name', async () => {
   for (const file of ['README.md', 'README.zh.md']) {
     const text = await readFile(path.join(root, file), 'utf8')
